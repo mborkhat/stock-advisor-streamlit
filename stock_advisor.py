@@ -9,16 +9,14 @@ import requests
 import re
 
 # NEWS API KEY (replace with your key)
-NEWS_API_KEY = "43519c8a11d042d39bf873d5d8cb0c6b"
+NEWS_API_KEY = "your_newsapi_key_here"
 
-# Ensure device compatibility (CPU if CUDA is not available)
 # Ensure device compatibility (CPU only to avoid meta tensor errors)
 classifier = pipeline(
     "zero-shot-classification",
     model="facebook/bart-large-mnli",
     device=-1  # Force CPU
 )
-
 
 RISK_THRESHOLDS = {
     "low": 5,
@@ -136,7 +134,7 @@ if selected_symbol:
         st.subheader("\U0001F4C9 5-Year Price Chart")
         hist = result['history']
         fig = go.Figure()
-        fig.add_trace(go.Scatter(x=hist.index, y=hist['Close'], mode='lines+markers', name='Close Price'))
+        fig.add_trace(go.Scatter(x=hist.index, y=hist['Close'], mode='lines+markers', name='Close Price', text=hist['Close'], hovertemplate='Date: %{x}<br>Price: ₹%{y:.2f}<extra></extra>'))
         fig.update_layout(
             title=f"{result['symbol']} - 5Y Closing Prices",
             xaxis_title='Date',
