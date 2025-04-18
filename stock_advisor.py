@@ -6,10 +6,13 @@ import matplotlib.pyplot as plt
 import requests
 import torch
 
-# Ensure the model runs on CPU if no GPU is available
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+# Ensure device compatibility
+try:
+    device = 0 if torch.cuda.is_available() else -1
+except:
+    device = -1
 
-# Load Hugging Face zero-shot classifier with device setting
+# Load Hugging Face zero-shot classifier
 classifier = pipeline("zero-shot-classification", model="facebook/bart-large-mnli", device=device)
 
 # Define risk metrics and thresholds
@@ -19,7 +22,7 @@ RISK_THRESHOLDS = {
     "high": 20
 }
 
-# Function to search NSE symbols via live API (using NSE India unofficial endpoint)
+# Function to search NSE symbols via web-scraped suggestion API
 @st.cache_data
 def search_nse_symbols_live(query):
     try:
@@ -28,28 +31,14 @@ def search_nse_symbols_live(query):
         }
         url = f"https://www.nseindia.com/api/search/autocomplete?q={query}"
         response = requests.get(url, headers=headers, timeout=5)
-        response.raise_for_status()  # Will raise an error if the request fails
+        response.raise_for_status()
         data = response.json()
 
-        # Check if data is returned
-        if 'symbols' not in data:
-            st.error("Error fetching data from NSE API. Please try again later.")
-            return []
-
-        # Extract stock symbols and map them to their names
-        matches = [
-            {"label": item['label'], "symbol": item['symbol']}
-            for item in data['symbols'] if item['symbol'].endswith("EQ")
-        ]
-        
-        if not matches:
-            st.warning(f"No stocks found for '{query}'. Try another search term.")
-        
+        matches = {item['label']: item['symbol'] for item in data['symbols'] if item['symbol'].endswith("EQ")}
         return matches
-
     except Exception as e:
-        st.error(f"An error occurred while fetching data: {str(e)}")
-        return []
+        print("NSE API Error:", e)
+        return {}
 
 # Fetch stock data
 def fetch_stock_summary(symbol):
@@ -91,44 +80,36 @@ This app analyzes **NSE-listed Indian stocks**, evaluates 6-month performance, a
 """)
 
 # Search box for user input
-user_input = st.text_input("Enter stock name or code:")
+user_input = st.text_input("Enter stock name or code:", "Reliance")
 
-if user_input:
-    # Fetch matching stocks dynamically as the user types
-    matched = search_nse_symbols_live(user_input)
+matched = search_nse_symbols_live(user_input)
 
-    if matched:
-        selected_symbol = st.selectbox("Select a stock:", [item['label'] for item in matched])
+if matched:
+    selected_label = st.selectbox("Select a matching stock:", list(matched.keys()))
+    selected_symbol = matched[selected_label]
+    if st.button("Analyze"):
+        results = analyze_portfolio([selected_symbol])
 
-        # Get the corresponding symbol for the selected stock
-        selected_symbol_code = next(item['symbol'] for item in matched if item['label'] == selected_symbol)
+        if not results:
+            st.error("No data found. Please try another stock.")
+        else:
+            df = pd.DataFrame(results)
 
-        if st.button("Analyze"):
-            results = analyze_portfolio([selected_symbol_code])
+            st.subheader("📈 Summary Table")
+            st.dataframe(df[["symbol", "current_price", "pct_change", "risk"]])
 
-            if not results:
-                st.error("No data found. Please try another stock.")
-            else:
-                df = pd.DataFrame(results)
+            st.subheader("🧠 AI-Powered Recommendation")
+            for r in results:
+                prompt = (f"The stock {r['symbol']} has changed {r['pct_change']:.2f}% over 6 months. "
+                          f"The current price is ₹{r['current_price']:.2f}. Risk level is {r['risk']}. Should I invest?")
+                recommendation = get_advice(prompt)
+                st.write(f"**{r['symbol']}**: {recommendation} — *{prompt}*")
 
-                st.subheader("📈 Summary Table")
-                st.dataframe(df[["symbol", "current_price", "pct_change", "risk"]])
-
-                st.subheader("🧠 AI-Powered Recommendation")
-                for r in results:
-                    prompt = (f"The stock {r['symbol']} has changed {r['pct_change']:.2f}% over 6 months. "
-                              f"The current price is ₹{r['current_price']:.2f}. Risk level is {r['risk']}. Should I invest?")
-                    recommendation = get_advice(prompt)
-                    st.write(f"**{r['symbol']}**: {recommendation} — *{prompt}*")
-
-                st.subheader("📉 6-Month Price Chart")
-                for r in results:
-                    st.write(f"### {r['symbol']}")
-                    fig, ax = plt.subplots()
-                    r['history']['Close'].plot(ax=ax, title=f"{r['symbol']} - 6M Closing Prices")
-                    st.pyplot(fig)
-
-    else:
-        st.warning("No stocks found for the entered query. Try another name or code.")
+            st.subheader("📉 6-Month Price Chart")
+            for r in results:
+                st.write(f"### {r['symbol']}")
+                fig, ax = plt.subplots()
+                r['history']['Close'].plot(ax=ax, title=f"{r['symbol']} - 6M Closing Prices")
+                st.pyplot(fig)
 else:
-    st.info("Please enter a stock name or code to get started.")
+    st.info("Enter a valid stock name or code and select from suggestions.")
