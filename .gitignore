@@ -1,0 +1,25 @@
+# Hide secret API key for Streamlit
+.streamlit/secrets.toml
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints
+
+# Environment files
+.env
+.venv
+env/
+venv/
+
+# VS Code
+.vscode/
+
+# macOS
+.DS_Store
+
+# Streamlit specific
+.streamlit/config.toml
