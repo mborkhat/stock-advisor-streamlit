@@ -62,6 +62,10 @@ def get_indian_stock_symbols():
         nse_500 = pd.read_html("https://en.wikipedia.org/wiki/NIFTY_500")[1]
         nse_500["Symbol"] = nse_500["Symbol"].astype(str).str.strip() + ".NS"
         symbol_dict = dict(zip(nse_500['Company Name'], nse_500['Symbol']))
+
+        # Also include reverse mapping from symbol to itself for symbol search
+        symbol_dict.update({v: v for v in symbol_dict.values()})
+
         return symbol_dict
     except:
         return {}
@@ -75,20 +79,22 @@ This app analyzes **Indian stocks from Yahoo Finance**, evaluates 6-month perfor
 
 # Load symbol dictionary
 symbol_dict = get_indian_stock_symbols()
-company_names = list(symbol_dict.keys())
+search_pool = list(symbol_dict.keys())
 
-# Freeform text box with real-time suggestions
-user_search = st.text_input("Type stock name (e.g., Reliance, Infosys, TCS...)")
+# Freeform text box with fuzzy dropdown-style feedback
+user_search = st.text_input("🔍 Type stock name or symbol (e.g., Reliance, INFY.NS, TCS.NS)")
 selected_symbol = None
 
 if user_search:
-    suggestions = process.extract(user_search, company_names, limit=5)
-    if suggestions:
-        top_match = suggestions[0][0]
-        selected_symbol = symbol_dict[top_match]
-        st.caption(f"Top Match: {top_match} ({selected_symbol})")
+    suggestions = process.extract(user_search, search_pool, limit=5)
+    matches = [f"{match} ({symbol_dict[match]})" for match, score in suggestions if score > 50]
 
-if selected_symbol and st.button("Analyze"):
+    if matches:
+        chosen = st.selectbox("Suggestions:", matches)
+        top_match = chosen.split("(")[0].strip()
+        selected_symbol = symbol_dict.get(top_match)
+
+if selected_symbol:
     results = analyze_portfolio([selected_symbol])
 
     if not results:
