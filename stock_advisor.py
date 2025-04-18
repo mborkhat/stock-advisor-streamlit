@@ -21,7 +21,7 @@ RISK_THRESHOLDS = {
     "high": 20
 }
 
-# Function to fetch stock data from Yahoo Finance
+# Fetch stock data from Yahoo Finance
 def fetch_stock_summary(symbol):
     stock = yf.Ticker(symbol)
     hist = stock.history(period="6mo")
@@ -60,28 +60,15 @@ st.markdown("""
 This app analyzes **Indian stocks from Yahoo Finance**, evaluates 6-month performance, and gives investment advice using Hugging Face transformers (100% free tech).
 """)
 
-# Search for stock tickers dynamically
-search_term = st.text_input("Search for a stock (e.g., Reliance, TCS, etc.):", "")
+# User input for stock symbol
+ticker_input = st.text_input("Enter a Yahoo Finance stock symbol (e.g., RELIANCE.NS, TCS.NS):")
+selected_symbol = ticker_input.strip().upper() if ticker_input else None
 
-# Use Yahoo Finance's Ticker symbols (no need for external CSV)
-if search_term:
-    # Autocomplete and display stock suggestions
-    try:
-        stock_data = yf.Ticker(search_term)
-        stock_info = stock_data.info
-        stock_name = stock_info['longName'] if 'longName' in stock_info else "Unknown"
-        st.write(f"Stock found: **{stock_name}**")
-        selected_symbol = search_term
-    except Exception as e:
-        st.error(f"Error fetching stock: {e}")
-        selected_symbol = None
-
-# Analyze selected stock when user presses the button
 if selected_symbol and st.button("Analyze"):
     results = analyze_portfolio([selected_symbol])
 
     if not results:
-        st.error("No data found. Please try another stock.")
+        st.error("No data found. Please try another stock symbol.")
     else:
         df = pd.DataFrame(results)
 
