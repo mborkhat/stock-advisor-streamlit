@@ -12,11 +12,13 @@ import re
 NEWS_API_KEY = "43519c8a11d042d39bf873d5d8cb0c6b"
 
 # Ensure device compatibility (CPU if CUDA is not available)
+# Ensure device compatibility (CPU only to avoid meta tensor errors)
 classifier = pipeline(
     "zero-shot-classification",
-    model="valhalla/distilbart-mnli-12-1",
-    device=0 if torch.cuda.is_available() else -1
+    model="facebook/bart-large-mnli",
+    device=-1  # Force CPU
 )
+
 
 RISK_THRESHOLDS = {
     "low": 5,
