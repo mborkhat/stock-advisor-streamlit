@@ -54,11 +54,13 @@ def get_advice(text):
     result = classifier(text, labels)
     return result['labels'][0]
 
-# Get live stock suggestions using yfinance tickers list
+# Get broader list of Indian stocks using yfinance
+@st.cache_data
 def get_yahoo_symbols():
+    tickers = yf.tickers.Tickers("^NSEI")
     try:
-        tickers = pd.read_html("https://en.wikipedia.org/wiki/NIFTY_50")[1]
-        symbol_dict = dict(zip(tickers['Company'], tickers['Symbol'].apply(lambda x: x + ".NS")))
+        index_tickers = pd.read_html("https://en.wikipedia.org/wiki/NIFTY_500")[1]  # or broader list
+        symbol_dict = dict(zip(index_tickers['Company Name'], index_tickers['Symbol'].apply(lambda x: x + ".NS")))
         return symbol_dict
     except:
         return {}
@@ -74,15 +76,18 @@ This app analyzes **Indian stocks from Yahoo Finance**, evaluates 6-month perfor
 symbol_dict = get_yahoo_symbols()
 company_names = list(symbol_dict.keys())
 
-user_search = st.text_input("Type stock name (e.g., reliance, infosys, tata...)")
+user_search = st.text_input("Type stock name (e.g., Reliance, Infosys, TCS...)")
 selected_symbol = None
 
 if user_search:
     suggestions = process.extract(user_search, company_names, limit=5)
     match_labels = [s[0] for s in suggestions]
-    matched = st.selectbox("Select a matching stock:", match_labels)
-    if matched:
-        selected_symbol = symbol_dict[matched]
+    if len(match_labels) == 1:
+        selected_symbol = symbol_dict[match_labels[0]]
+    else:
+        matched = st.selectbox("Select a matching stock:", match_labels)
+        if matched:
+            selected_symbol = symbol_dict[matched]
 
 if selected_symbol and st.button("Analyze"):
     results = analyze_portfolio([selected_symbol])
