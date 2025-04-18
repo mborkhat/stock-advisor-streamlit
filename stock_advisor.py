@@ -8,10 +8,10 @@ from fuzzywuzzy import process
 import requests
 import re
 
-# NEWS API KEY (replace with your key)
-NEWS_API_KEY = "43519c8a11d042d39bf873d5d8cb0c6b"
+# NEWS API KEY (replace this with your actual News API key)
+NEWS_API_KEY = "your_newsapi_key_here"
 
-# Ensure device compatibility (CPU if CUDA is not available)
+# Device configuration for Hugging Face
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 classifier = pipeline("zero-shot-classification", model="facebook/bart-large-mnli", device=0 if torch.cuda.is_available() else -1)
 
@@ -67,31 +67,34 @@ def get_nifty_50_symbols():
 
 def get_yahoo_stock_symbols(query):
     tickers = get_nifty_50_symbols()
-    matched = process.extract(query, tickers, limit=5)
+    matched = process.extract(query.upper(), tickers, limit=5)
     return [m[0] for m in matched if m[1] > 50]
 
 def fetch_stock_news(symbol):
     company = re.sub(r'\W+', ' ', symbol.replace('.NS', '')).strip()
-    url = f"https://newsapi.org/v2/everything?q={company}&language=en&sortBy=publishedAt&apiKey={NEWS_API_KEY}"
-    response = requests.get(url)
-    if response.status_code == 200:
+    try:
+        url = f"https://newsapi.org/v2/everything?q={company}&language=en&sortBy=publishedAt&pageSize=5&apiKey={NEWS_API_KEY}"
+        response = requests.get(url, timeout=5)
+        response.raise_for_status()
         data = response.json()
         return [{
             'title': a['title'],
             'source': a['source']['name'],
             'url': a['url'],
             'date': pd.to_datetime(a['publishedAt']).strftime('%Y-%m-%d %H:%M')
-        } for a in data.get('articles', [])[:5]]
-    return []
+        } for a in data.get('articles', [])]
+    except Exception as e:
+        return []
 
-# Streamlit UI
-st.title("\U0001F4C8 Indian Stock Portfolio Advisor (Free AI Powered)")
+# --- Streamlit App ---
+st.set_page_config(page_title="Indian Stock Portfolio Advisor", layout="wide")
+st.title("📈 Indian Stock Portfolio Advisor (Free AI Powered)")
 
 st.markdown("""
-This app analyzes **Indian stocks from Yahoo Finance**, evaluates 6-month performance, and gives investment advice using Hugging Face transformers (100% free tech).
+This app analyzes **Indian stocks from Yahoo Finance**, evaluates 6-month performance, gives investment recommendations using Hugging Face AI, and shows the latest news — all powered by free tech.
 """)
 
-user_search = st.text_input("\U0001F50D Type stock name or symbol (e.g., Reliance, INFY.NS, TCS.NS)")
+user_search = st.text_input("🔍 Type stock name or symbol (e.g., Reliance, INFY.NS, TCS.NS)")
 selected_symbol = None
 
 if user_search:
@@ -105,33 +108,33 @@ if selected_symbol:
     if not result:
         st.error("No data found. Please try another stock symbol.")
     else:
-        st.subheader("\U0001F4C8 Stock Summary")
-        st.write(f"**{result['symbol']}**: Current price ₹{result['current_price']:.2f}")
-        st.write(f"**52 Week High**: ₹{result['week_52_high']}, **52 Week Low**: ₹{result['week_52_low']}")
-        st.write(f"Performance over 6 months: {result['pct_change']:.2f}%")
-        st.write(f"Risk level: {result['risk']}")
+        st.subheader("📊 Stock Summary")
+        st.write(f"**{result['symbol']}**: ₹{result['current_price']:.2f}")
+        st.write(f"52-Week High: ₹{result['week_52_high']} | 52-Week Low: ₹{result['week_52_low']}")
+        st.write(f"6-Month Change: {result['pct_change']:.2f}%")
+        st.write(f"Risk: **{result['risk'].capitalize()}**")
 
+        # AI Advice
         prompt = (
             f"The stock {result['symbol']} has changed {result['pct_change']:.2f}% over 6 months. "
             f"The current price is ₹{result['current_price']:.2f}. Risk level is {result['risk']}. Should I invest?"
         )
         recommendation = get_advice(prompt)
-        st.write(f"**Recommendation**: {recommendation}")
+        st.success(f"📌 **Recommendation**: {recommendation}")
 
-        st.subheader("\U0001F4F0 Latest News")
+        # News Section
+        st.subheader("📰 Latest News")
         articles = fetch_stock_news(result['symbol'])
         if articles:
             for article in articles:
-                st.write(f"- **{article['title']}**")
-                st.write(f"  Source: {article['source']} | Date: {article['date']}")
-                st.write(f"  [Read more]({article['url']})")
+                st.markdown(f"**[{article['title']}]({article['url']})**  \n"
+                            f"_Source: {article['source']} | {article['date']}_")
         else:
-            st.write("No news found for this stock.")
+            st.info("No recent news found or API error.")
 
-        st.subheader("\U0001F4C9 6-Month Price Chart")
-        fig, ax = plt.subplots(figsize=(10, 6))
-        result['history']['Close'].plot(ax=ax, title=f"{result['symbol']} - 6M Closing Prices")
-        ax.set_ylabel('Price (₹)')
-        ax.set_xlabel('Date')
-        ax.grid(True)
-        st.pyplot(fig)
+        # Chart Section
+        st.subheader("📉 6-Month Price Chart")
+        if not result['history'].empty:
+            st.line_chart(result['history']['Close'])
+        else:
+            st.warning("Price history not available.")
