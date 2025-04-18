@@ -100,7 +100,7 @@ user_search = st.text_input("\U0001F50D Type stock name or symbol (e.g., Relianc
 selected_symbol = None
 
 time_range = st.selectbox("Select performance period:", (
-    "6mo", "1y", "2y", "3y", "4y", "5y"), index=0)
+   "7d", "6mo", "1y", "2y", "3y", "4y", "5y"), index=0)
 
 if user_search:
     suggestions = get_yahoo_stock_symbols(user_search)
