@@ -3,3 +3,4 @@ yfinance
 transformers
 requests
 matplotlib
+torch
