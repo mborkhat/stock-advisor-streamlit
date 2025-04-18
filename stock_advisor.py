@@ -54,34 +54,30 @@ def get_advice(text):
     result = classifier(text, labels)
     return result['labels'][0]
 
-# Preload common NSE stock symbols using yfinance info
+# Fetch broader stock list dynamically from Yahoo (NSE)
 @st.cache_data
-def get_yf_nse_symbols():
-    common_symbols = [
-        "RELIANCE.NS", "TCS.NS", "INFY.NS", "HDFCBANK.NS", "ICICIBANK.NS", "LT.NS",
-        "SBIN.NS", "HINDUNILVR.NS", "ITC.NS", "AXISBANK.NS", "BHARTIARTL.NS", "KOTAKBANK.NS",
-        "ASIANPAINT.NS", "MARUTI.NS", "BAJFINANCE.NS", "SUNPHARMA.NS", "WIPRO.NS"
-    ]
-    data = []
-    for symbol in common_symbols:
-        try:
-            info = yf.Ticker(symbol).info
-            data.append((info.get("longName", symbol), symbol))
-        except:
-            continue
-    symbol_dict = dict(data)
-    symbol_dict.update({v: v for v in symbol_dict.values()})  # Include symbol-to-symbol mapping
-    return symbol_dict
+def get_indian_stock_symbols():
+    try:
+        nse_500 = pd.read_html("https://en.wikipedia.org/wiki/NIFTY_500")[1]
+        nse_500["Symbol"] = nse_500["Symbol"].astype(str).str.strip() + ".NS"
+        symbol_dict = dict(zip(nse_500['Company Name'], nse_500['Symbol']))
+
+        # Also include reverse mapping from symbol to itself for symbol search
+        symbol_dict.update({v: v for v in symbol_dict.values()})
+
+        return symbol_dict
+    except:
+        return {}
 
 # Streamlit UI
-st.title("\U0001F4C8 Indian Stock Portfolio Advisor (Free AI Powered)")
+st.title("📊 Indian Stock Portfolio Advisor (Free AI Powered)")
 
 st.markdown("""
 This app analyzes **Indian stocks from Yahoo Finance**, evaluates 6-month performance, and gives investment advice using Hugging Face transformers (100% free tech).
 """)
 
 # Load symbol dictionary
-symbol_dict = get_yf_nse_symbols()
+symbol_dict = get_indian_stock_symbols()
 search_pool = list(symbol_dict.keys())
 
 # Freeform text box with fuzzy dropdown-style feedback
@@ -89,6 +85,7 @@ user_search = st.text_input("🔍 Type stock name or symbol (e.g., Reliance, INF
 selected_symbol = None
 
 if user_search:
+    # Fuzzy matching for suggestions
     suggestions = process.extract(user_search, search_pool, limit=5)
     matches = [f"{match} ({symbol_dict[match]})" for match, score in suggestions if score > 50]
 
@@ -97,7 +94,8 @@ if user_search:
         top_match = chosen.split("(")[0].strip()
         selected_symbol = symbol_dict.get(top_match)
 
-if selected_symbol:
+# Analyze the selected stock when button is clicked
+if selected_symbol and st.button("Analyze"):
     results = analyze_portfolio([selected_symbol])
 
     if not results:
@@ -105,17 +103,17 @@ if selected_symbol:
     else:
         df = pd.DataFrame(results)
 
-        st.subheader("\U0001F4C8 Summary Table")
+        st.subheader("📈 Summary Table")
         st.dataframe(df[["symbol", "current_price", "pct_change", "risk"]])
 
-        st.subheader("\U0001F9E0 AI-Powered Recommendation")
+        st.subheader("🧠 AI-Powered Recommendation")
         for r in results:
             prompt = (f"The stock {r['symbol']} has changed {r['pct_change']:.2f}% over 6 months. "
                       f"The current price is ₹{r['current_price']:.2f}. Risk level is {r['risk']}. Should I invest?")
             recommendation = get_advice(prompt)
             st.write(f"**{r['symbol']}**: {recommendation} — *{prompt}*")
 
-        st.subheader("\U0001F4C9 6-Month Price Chart")
+        st.subheader("📉 6-Month Price Chart")
         for r in results:
             st.write(f"### {r['symbol']}")
             fig, ax = plt.subplots()
