@@ -1,26 +1,7 @@
 import streamlit as st
 import yfinance as yf
-from transformers import pipeline
 import pandas as pd
-import matplotlib.pyplot as plt
-import torch
 from fuzzywuzzy import process
-
-# Ensure device compatibility
-try:
-    device = 0 if torch.cuda.is_available() else -1
-except:
-    device = -1
-
-# Load Hugging Face zero-shot classifier
-classifier = pipeline("zero-shot-classification", model="facebook/bart-large-mnli", device=device)
-
-# Define risk metrics and thresholds
-RISK_THRESHOLDS = {
-    "low": 5,
-    "medium": 10,
-    "high": 20
-}
 
 # Fetch stock data from Yahoo Finance
 def fetch_stock_summary(symbol):
@@ -33,8 +14,7 @@ def fetch_stock_summary(symbol):
     current_price = hist['Close'].iloc[-1]
     change = current_price - hist['Close'].iloc[0]
     pct_change = (change / hist['Close'].iloc[0]) * 100
-    risk = "low" if abs(pct_change) < RISK_THRESHOLDS["low"] else (
-           "medium" if abs(pct_change) < RISK_THRESHOLDS["medium"] else "high")
+    risk = "low" if abs(pct_change) < 5 else ("medium" if abs(pct_change) < 10 else "high")
 
     return {
         "symbol": symbol,
@@ -44,19 +24,9 @@ def fetch_stock_summary(symbol):
         "history": hist
     }
 
-# Analyze multiple stocks
-def analyze_portfolio(symbols):
-    return [fetch_stock_summary(sym) for sym in symbols if fetch_stock_summary(sym) is not None]
-
-# Classify recommendation using Hugging Face
-def get_advice(text):
-    labels = ["Buy", "Hold", "Avoid"]
-    result = classifier(text, labels)
-    return result['labels'][0]
-
-# Fetch Nifty 50 symbols dynamically
+# Fetch Nifty 50 symbols dynamically (or any set of stock symbols)
 def get_nifty_50_symbols():
-    # List of tickers from Nifty 50
+    # Manually or dynamically get the stock symbols from a reliable source
     nifty_50_symbols = [
         "RELIANCE.NS", "TCS.NS", "INFY.NS", "HDFC.NS", "ICICIBANK.NS", "SBIN.NS", 
         "BAJAJ-AUTO.NS", "BHARTIARTL.NS", "M&M.NS", "KOTAKBANK.NS", "LT.NS", "ITC.NS",
@@ -83,42 +53,37 @@ def get_yahoo_stock_symbols(query):
 st.title("📊 Indian Stock Portfolio Advisor (Free AI Powered)")
 
 st.markdown("""
-This app analyzes **Indian stocks from Yahoo Finance**, evaluates 6-month performance, and gives investment advice using Hugging Face transformers (100% free tech).
+This app analyzes **Indian stocks from Yahoo Finance**, evaluates 6-month performance.
 """)
 
 # Search for symbols dynamically from Yahoo Finance
 user_search = st.text_input("🔍 Type stock name or symbol (e.g., Reliance, INFY.NS, TCS.NS)")
-selected_symbol = None  # Initialize selected_symbol
 
+# Allow autocomplete without suggestions
 if user_search:
     # Get stock symbols matching the search query
     suggestions = get_yahoo_stock_symbols(user_search)
+    
     if suggestions:
-        # Display suggestions to the user
-        selected_symbol = st.selectbox("Suggestions:", suggestions)
-
-# Allow the user to proceed with the analysis if a symbol is selected
-if selected_symbol:
-    results = analyze_portfolio([selected_symbol])
-
-    if not results:
-        st.error("No data found. Please try another stock symbol.")
+        # Display autocomplete-like suggestions
+        selected_symbol = st.selectbox("Select stock symbol", suggestions)
     else:
-        df = pd.DataFrame(results)
+        # Display message if no stock is found
+        st.error("Stock not found. Please try again with a different symbol.")
 
-        st.subheader("📈 Summary Table")
-        st.dataframe(df[["symbol", "current_price", "pct_change", "risk"]])
+    if selected_symbol:
+        # Proceed with the stock analysis once a symbol is selected
+        st.write(f"Analyzing **{selected_symbol}**...")
 
-        st.subheader("🧠 AI-Powered Recommendation")
-        for r in results:
-            prompt = (f"The stock {r['symbol']} has changed {r['pct_change']:.2f}% over 6 months. "
-                      f"The current price is ₹{r['current_price']:.2f}. Risk level is {r['risk']}. Should I invest?")
-            recommendation = get_advice(prompt)
-            st.write(f"**{r['symbol']}**: {recommendation} — *{prompt}*")
+        result = fetch_stock_summary(selected_symbol)
+        if result:
+            df = pd.DataFrame([result])
+            st.subheader("📈 Stock Summary Table")
+            st.dataframe(df[["symbol", "current_price", "pct_change", "risk"]])
 
-        st.subheader("📉 6-Month Price Chart")
-        for r in results:
-            st.write(f"### {r['symbol']}")
+            st.subheader("📉 6-Month Price Chart")
             fig, ax = plt.subplots()
-            r['history']['Close'].plot(ax=ax, title=f"{r['symbol']} - 6M Closing Prices")
+            result['history']['Close'].plot(ax=ax, title=f"{selected_symbol} - 6M Closing Prices")
             st.pyplot(fig)
+        else:
+            st.error("No data found for the selected stock.")
