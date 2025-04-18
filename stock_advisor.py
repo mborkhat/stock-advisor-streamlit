@@ -142,17 +142,29 @@ if selected_symbol:
             else:
                 st.write("No news found for this stock.")
 
-        # Display price chart with 7-day moving average if selected
+        # Plotting the price chart with dropdown for time range
         st.subheader(f"\U0001F4C9 {time_range} Price Chart")
         hist = result['history']
         
         if time_range == '7d':
             hist = hist.tail(7)  # Get only the last 7 days
-        
+        elif time_range == '6mo':
+            hist = hist.tail(180)  # Approx. 6 months
+        elif time_range == '1y':
+            hist = hist.tail(365)  # Approx. 1 year
+        elif time_range == '2y':
+            hist = hist.tail(730)  # Approx. 2 years
+        elif time_range == '3y':
+            hist = hist.tail(1095)  # Approx. 3 years
+        elif time_range == '4y':
+            hist = hist.tail(1460)  # Approx. 4 years
+        elif time_range == '5y':
+            hist = hist.tail(1825)  # Approx. 5 years
+
         # Calculate the 7-day Moving Average
         hist['7_day_MA'] = hist['Close'].rolling(window=7).mean()
-        
-        # Plot the price chart and the moving average
+
+        # Create the plot with dropdown to change time range
         fig = go.Figure()
 
         # Plot stock price
@@ -166,6 +178,42 @@ if selected_symbol:
             xaxis_title='Date',
             yaxis_title='Price (₹)',
             hovermode='x unified',
-            height=500
+            height=500,
+            updatemenus=[dict(
+                type="buttons",
+                direction="down",
+                buttons=[dict(
+                    args=["xaxis.range", [hist.index[0], hist.index[-1]]],
+                    label="7d",
+                    method="relayout"
+                ), dict(
+                    args=["xaxis.range", [hist.index[0], hist.index[-1]]],
+                    label="6mo",
+                    method="relayout"
+                ), dict(
+                    args=["xaxis.range", [hist.index[0], hist.index[-1]]],
+                    label="1y",
+                    method="relayout"
+                ), dict(
+                    args=["xaxis.range", [hist.index[0], hist.index[-1]]],
+                    label="2y",
+                    method="relayout"
+                ), dict(
+                    args=["xaxis.range", [hist.index[0], hist.index[-1]]],
+                    label="3y",
+                    method="relayout"
+                ), dict(
+                    args=["xaxis.range", [hist.index[0], hist.index[-1]]],
+                    label="4y",
+                    method="relayout"
+                ), dict(
+                    args=["xaxis.range", [hist.index[0], hist.index[-1]]],
+                    label="5y",
+                    method="relayout"
+                )],
+                showactive=True,
+                x=0.9,
+                y=1.15
+            )]
         )
         st.plotly_chart(fig, use_container_width=True)
