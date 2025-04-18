@@ -1,9 +1,9 @@
-streamlit
-yfinance
 transformers
 torch
 fuzzywuzzy
 python-Levenshtein
-requests
+yfinance
 pandas
 plotly
+requests
+streamlit
