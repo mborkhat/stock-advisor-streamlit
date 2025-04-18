@@ -7,12 +7,6 @@ Original file is located at
     https://colab.research.google.com/drive/1yyg7HzdIPm6NJ9nK3V32dQvAM4gPG26V
 """
 
-#INSTALL DEPENDENCY
-!pip install streamlit
-!pip install yfinance
-!pip install transformers
-!pip install requests
-
 import streamlit as st
 import yfinance as yf
 from transformers import pipeline
