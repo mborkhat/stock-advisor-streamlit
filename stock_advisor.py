@@ -1,6 +1,7 @@
 import streamlit as st
 import yfinance as yf
 import pandas as pd
+import matplotlib.pyplot as plt
 from fuzzywuzzy import process
 
 # Fetch stock data from Yahoo Finance
@@ -26,7 +27,6 @@ def fetch_stock_summary(symbol):
 
 # Fetch Nifty 50 symbols dynamically (or any set of stock symbols)
 def get_nifty_50_symbols():
-    # Manually or dynamically get the stock symbols from a reliable source
     nifty_50_symbols = [
         "RELIANCE.NS", "TCS.NS", "INFY.NS", "HDFC.NS", "ICICIBANK.NS", "SBIN.NS", 
         "BAJAJ-AUTO.NS", "BHARTIARTL.NS", "M&M.NS", "KOTAKBANK.NS", "LT.NS", "ITC.NS",
@@ -42,10 +42,7 @@ def get_nifty_50_symbols():
 
 # Function to fetch stock symbols from user search
 def get_yahoo_stock_symbols(query):
-    # Get Nifty 50 symbols dynamically (can be changed for other indexes or lists)
     tickers = get_nifty_50_symbols()
-    
-    # Match query with tickers (use fuzzy matching here)
     matched_tickers = process.extract(query, tickers, limit=5)
     return [match[0] for match in matched_tickers if match[1] > 50]
 
@@ -56,23 +53,17 @@ st.markdown("""
 This app analyzes **Indian stocks from Yahoo Finance**, evaluates 6-month performance.
 """)
 
-# Search for symbols dynamically from Yahoo Finance
 user_search = st.text_input("🔍 Type stock name or symbol (e.g., Reliance, INFY.NS, TCS.NS)")
 
-# Allow autocomplete without suggestions
 if user_search:
-    # Get stock symbols matching the search query
     suggestions = get_yahoo_stock_symbols(user_search)
     
     if suggestions:
-        # Display autocomplete-like suggestions
         selected_symbol = st.selectbox("Select stock symbol", suggestions)
     else:
-        # Display message if no stock is found
         st.error("Stock not found. Please try again with a different symbol.")
 
     if selected_symbol:
-        # Proceed with the stock analysis once a symbol is selected
         st.write(f"Analyzing **{selected_symbol}**...")
 
         result = fetch_stock_summary(selected_symbol)
@@ -82,8 +73,13 @@ if user_search:
             st.dataframe(df[["symbol", "current_price", "pct_change", "risk"]])
 
             st.subheader("📉 6-Month Price Chart")
-            fig, ax = plt.subplots()
-            result['history']['Close'].plot(ax=ax, title=f"{selected_symbol} - 6M Closing Prices")
-            st.pyplot(fig)
+            
+            # Check if the stock data contains valid 'Close' prices before plotting
+            if not result['history'].empty and 'Close' in result['history']:
+                fig, ax = plt.subplots()
+                result['history']['Close'].plot(ax=ax, title=f"{selected_symbol} - 6M Closing Prices")
+                st.pyplot(fig)
+            else:
+                st.error("No valid stock data available to plot.")
         else:
             st.error("No data found for the selected stock.")
