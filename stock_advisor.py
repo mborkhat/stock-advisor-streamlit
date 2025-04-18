@@ -119,7 +119,8 @@ if selected_symbol:
         with col1:
             st.subheader("\U0001F4C8 Stock Summary")
             st.write(f"**{result['symbol']}**: Current price ₹{result['current_price']:.2f}")
-            st.write(f"**52 Week High**: ₹{result['week_52_high']}, **52 Week Low**: ₹{result['week_52_low']}")
+            st.write(f"**52 Week High**: ₹{result['week_52_high']})
+            st.write(f"**52 Week Low**: ₹{result['week_52_low']})
             st.write(f"Performance over {time_range}: {result['pct_change']:.2f}%")
             st.write(f"Risk level: {result['risk']}")
 
