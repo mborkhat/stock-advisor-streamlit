@@ -5,6 +5,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import torch
 from fuzzywuzzy import process
+import requests
+from bs4 import BeautifulSoup
 
 # Ensure device compatibility
 try:
@@ -54,11 +56,25 @@ def get_advice(text):
     result = classifier(text, labels)
     return result['labels'][0]
 
-# Function to get stock symbols dynamically (example: can be extended)
-def get_yahoo_stock_symbols(query):
-    # Placeholder: return a list of symbols for the demo (in real-world, this can be fetched from a larger symbol dataset or API)
-    all_symbols = ["RELIANCE.NS", "TCS.NS", "INFY.NS", "HDFC.NS", "ICICIBANK.NS", "SBIN.NS", "BAJAJ-AUTO.NS", "BHARTIARTL.NS"]
-    return [symbol for symbol in all_symbols if query.lower() in symbol.lower()]
+# Scrape stock symbols from 5Paisa
+def fetch_5paisa_stock_symbols():
+    url = 'https://www.5paisa.com/stocks/all'
+    response = requests.get(url)
+
+    if response.status_code != 200:
+        return []
+
+    soup = BeautifulSoup(response.content, 'html.parser')
+    stock_elements = soup.find_all('a', {'class': 'stock-name'})
+
+    stock_symbols = []
+
+    for element in stock_elements:
+        symbol = element.get_text().strip()
+        if symbol:  # Ensure it's not an empty string
+            stock_symbols.append(symbol)
+
+    return stock_symbols
 
 # Streamlit UI
 st.title("📊 Indian Stock Portfolio Advisor (Free AI Powered)")
@@ -67,20 +83,18 @@ st.markdown("""
 This app analyzes **Indian stocks from Yahoo Finance**, evaluates 6-month performance, and gives investment advice using Hugging Face transformers (100% free tech).
 """)
 
-# Search for symbols dynamically from Yahoo (limited example list)
-user_search = st.text_input("🔍 Type stock name or symbol (e.g., Reliance, INFY.NS, TCS.NS)")
-selected_symbol = None  # Initialize selected_symbol
+# Fetch stock symbols dynamically from 5Paisa
+stock_symbols = fetch_5paisa_stock_symbols()
+
+user_search = st.text_input("🔍 Type stock name or symbol (e.g., Reliance, INFY.BO, TCS.BO)")
+selected_symbol = None
 
 if user_search:
     # Get stock symbols matching the search query
-    suggestions = get_yahoo_stock_symbols(user_search)
+    suggestions = process.extract(user_search, stock_symbols, limit=5)
     if suggestions:
-        # Fuzzy matching for better UX
-        matches = process.extract(user_search, suggestions, limit=5)
-        match_list = [match[0] for match in matches if match[1] > 50]  # Filter based on match score
-
-        if match_list:
-            selected_symbol = st.selectbox("Suggestions:", match_list)
+        # Display suggestions to the user
+        selected_symbol = st.selectbox("Suggestions:", [match[0] for match in suggestions])
 
 # Allow the user to proceed with the analysis if a symbol is selected
 if selected_symbol:
