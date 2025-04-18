@@ -14,8 +14,8 @@ NEWS_API_KEY = "43519c8a11d042d39bf873d5d8cb0c6b"
 # Ensure device compatibility (CPU if CUDA is not available)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# Load Hugging Face zero-shot classifier
-classifier = pipeline("zero-shot-classification", model="facebook/bart-large-mnli", device=0 if torch.cuda.is_available() else -1)
+# Initialize Hugging Face zero-shot classification model correctly
+classifier = pipeline("zero-shot-classification", model="facebook/bart-large-mnli", device=device.index if device.type == 'cuda' else -1)
 
 # Define risk metrics and thresholds
 RISK_THRESHOLDS = {
@@ -50,10 +50,6 @@ def fetch_stock_summary(symbol):
         "week_52_low": week_52_low,
         "history": hist
     }
-
-# Analyze multiple stocks
-def analyze_portfolio(symbols):
-    return [fetch_stock_summary(sym) for sym in symbols if fetch_stock_summary(sym) is not None]
 
 # Classify recommendation using Hugging Face
 def get_advice(text):
