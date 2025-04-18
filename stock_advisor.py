@@ -31,9 +31,6 @@ def search_nse_symbols_live(query):
         response.raise_for_status()  # Will raise an error if the request fails
         data = response.json()
 
-        # Debugging: print the raw response from the API
-        print("API Response:", data)
-
         # Check if data is returned
         if 'symbols' not in data:
             st.error("Error fetching data from NSE API. Please try again later.")
