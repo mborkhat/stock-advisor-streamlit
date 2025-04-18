@@ -5,12 +5,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import torch
 from fuzzywuzzy import process
-from time import sleep
-from yfinance.exceptions import YFRateLimitError
-from cachetools import TTLCache
-
-# Cache for storing stock data for 10 minutes to avoid repeated API calls
-stock_cache = TTLCache(maxsize=100, ttl=600)
+import requests
 
 # Ensure device compatibility
 try:
@@ -30,48 +25,31 @@ RISK_THRESHOLDS = {
 
 # Fetch stock data from Yahoo Finance
 def fetch_stock_summary(symbol):
-    # Check if data is already cached
-    if symbol in stock_cache:
-        return stock_cache[symbol]
+    stock = yf.Ticker(symbol)
+    hist = stock.history(period="6mo")
 
-    try:
-        stock = yf.Ticker(symbol)
-        hist = stock.history(period="6mo")
-        
-        if hist.empty:
-            return None
-        
-        # Get 52-week high and low
-        week_52_high = stock.info.get('fiftyTwoWeekHigh', None)
-        week_52_low = stock.info.get('fiftyTwoWeekLow', None)
+    if hist.empty:
+        return None
 
-        # Calculate risk based on percentage change
-        current_price = hist['Close'].iloc[-1]
-        change = current_price - hist['Close'].iloc[0]
-        pct_change = (change / hist['Close'].iloc[0]) * 100
-        risk = "low" if abs(pct_change) < RISK_THRESHOLDS["low"] else (
-               "medium" if abs(pct_change) < RISK_THRESHOLDS["medium"] else "high")
-
-        # Store the result in cache
-        result = {
-            "symbol": symbol,
-            "current_price": current_price,
-            "pct_change": pct_change,
-            "risk": risk,
-            "week_52_high": week_52_high,
-            "week_52_low": week_52_low,
-            "history": hist
-        }
-        stock_cache[symbol] = result
-        return result
+    current_price = hist['Close'].iloc[-1]
+    change = current_price - hist['Close'].iloc[0]
+    pct_change = (change / hist['Close'].iloc[0]) * 100
+    risk = "low" if abs(pct_change) < RISK_THRESHOLDS["low"] else (
+           "medium" if abs(pct_change) < RISK_THRESHOLDS["medium"] else "high")
     
-    except YFRateLimitError:
-        st.error("Rate limit exceeded. Please try again later.")
-        sleep(10)  # Retry after 10 seconds
-        return None
-    except Exception as e:
-        st.error(f"Error fetching data for {symbol}: {e}")
-        return None
+    # Fetch 52 week high and low
+    week_52_high = stock.info.get('fiftyTwoWeekHigh', 'N/A')
+    week_52_low = stock.info.get('fiftyTwoWeekLow', 'N/A')
+
+    return {
+        "symbol": symbol,
+        "current_price": current_price,
+        "pct_change": pct_change,
+        "risk": risk,
+        "week_52_high": week_52_high,
+        "week_52_low": week_52_low,
+        "history": hist
+    }
 
 # Analyze multiple stocks
 def analyze_portfolio(symbols):
@@ -100,12 +78,24 @@ def get_nifty_50_symbols():
 
 # Function to fetch stock symbols from user search
 def get_yahoo_stock_symbols(query):
-    # Get Nifty 50 symbols dynamically (can be changed for other indexes or lists)
     tickers = get_nifty_50_symbols()
     
     # Match query with tickers (use fuzzy matching here)
     matched_tickers = process.extract(query, tickers, limit=5)
     return [match[0] for match in matched_tickers if match[1] > 50]
+
+# Fetch latest news articles related to the stock
+def fetch_stock_news(symbol):
+    url = f"https://query2.finance.yahoo.com/v10/finance/quoteSummary/{symbol}?modules=news"
+    response = requests.get(url)
+    if response.status_code == 200:
+        data = response.json()
+        news = data['quoteSummary']['result'][0].get('news', [])
+        articles = []
+        for item in news:
+            articles.append(item['title'])
+        return articles
+    return []
 
 # Streamlit UI
 st.title("📊 Indian Stock Portfolio Advisor (Free AI Powered)")
@@ -129,13 +119,32 @@ if user_search:
 if selected_symbol:
     result = fetch_stock_summary(selected_symbol)
 
-    if result:
-        st.subheader(f"📈 Stock Summary: {selected_symbol}")
-        st.write(f"**Current Price**: ₹{result['current_price']:.2f}")
-        st.write(f"**Percentage Change (6 months)**: {result['pct_change']:.2f}%")
-        st.write(f"**52 Week High**: ₹{result['week_52_high']}")
-        st.write(f"**52 Week Low**: ₹{result['week_52_low']}")
+    if not result:
+        st.error("No data found. Please try another stock symbol.")
+    else:
+        st.subheader("📈 Stock Summary")
+        st.write(f"**{result['symbol']}**: Current price ₹{result['current_price']:.2f}")
+        st.write(f"**52 Week High**: ₹{result['week_52_high']}, **52 Week Low**: ₹{result['week_52_low']}")
+        st.write(f"Performance over 6 months: {result['pct_change']:.2f}%")
+        st.write(f"Risk level: {result['risk']}")
 
-        # Show recommendation
+        # Display AI recommendation
         prompt = (f"The stock {result['symbol']} has changed {result['pct_change']:.2f}% over 6 months. "
-                  f"The current price is ₹
+                  f"The current price is ₹{result['current_price']:.2f}. Risk level is {result['risk']}. Should I invest?")
+        recommendation = get_advice(prompt)
+        st.write(f"**Recommendation**: {recommendation}")
+
+        # Fetch and display the latest news articles
+        st.subheader("📰 Latest News")
+        articles = fetch_stock_news(result['symbol'])
+        if articles:
+            for article in articles[:5]:  # Display top 5 news articles
+                st.write(f"- {article}")
+        else:
+            st.write("No news found for this stock.")
+
+        # Display stock price chart
+        st.subheader("📉 6-Month Price Chart")
+        fig, ax = plt.subplots()
+        result['history']['Close'].plot(ax=ax, title=f"{result['symbol']} - 6M Closing Prices")
+        st.pyplot(fig)
