@@ -7,12 +7,8 @@ import torch
 from fuzzywuzzy import process
 import requests
 
-# Ensure device compatibility
-try:
-    device = 0 if torch.cuda.is_available() else -1
-except:
-    device = -1
-
+# Ensure device compatibility (CPU if CUDA is not available)
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # Load Hugging Face zero-shot classifier
 classifier = pipeline("zero-shot-classification", model="facebook/bart-large-mnli", device=device)
 
