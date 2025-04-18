@@ -24,13 +24,22 @@ def search_nse_symbols_live(query):
         }
         url = f"https://www.nseindia.com/api/search/autocomplete?q={query}"
         response = requests.get(url, headers=headers, timeout=5)
-        response.raise_for_status()
+        response.raise_for_status()  # Will raise an error if the request fails
         data = response.json()
 
+        # Check if data is returned
+        if 'symbols' not in data:
+            st.error("Error fetching data from NSE API. Please try again later.")
+            return {}
+
+        # Extract stock symbols and map them to their names
         matches = {item['label']: item['symbol'] for item in data['symbols'] if item['symbol'].endswith("EQ")}
+        if not matches:
+            st.warning(f"No stocks found for '{query}'. Please try another search term.")
         return matches
+
     except Exception as e:
-        print("NSE API Error:", e)
+        st.error(f"An error occurred while fetching data: {str(e)}")
         return {}
 
 # Fetch stock data
@@ -75,6 +84,7 @@ This app analyzes **NSE-listed Indian stocks**, evaluates 6-month performance, a
 # Search box for user input
 user_input = st.text_input("Enter stock name or code:", "Reliance")
 
+# Fetch matching stocks
 matched = search_nse_symbols_live(user_input)
 
 if matched:
