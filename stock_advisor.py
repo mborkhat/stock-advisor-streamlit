@@ -3,7 +3,6 @@ import yfinance as yf
 from transformers import pipeline
 import pandas as pd
 import matplotlib.pyplot as plt
-import requests
 import torch
 
 # Ensure device compatibility
@@ -22,27 +21,9 @@ RISK_THRESHOLDS = {
     "high": 20
 }
 
-# Function to search NSE symbols via web-scraped suggestion API
-@st.cache_data
-def search_nse_symbols_live(query):
-    try:
-        headers = {
-            "User-Agent": "Mozilla/5.0"
-        }
-        url = f"https://www.nseindia.com/api/search/autocomplete?q={query}"
-        response = requests.get(url, headers=headers, timeout=5)
-        response.raise_for_status()
-        data = response.json()
-
-        matches = {item['label']: item['symbol'] for item in data['symbols'] if item['symbol'].endswith("EQ")}
-        return matches
-    except Exception as e:
-        print("NSE API Error:", e)
-        return {}
-
-# Fetch stock data
+# Fetch stock data from Yahoo Finance
 def fetch_stock_summary(symbol):
-    stock = yf.Ticker(symbol + ".NS")
+    stock = yf.Ticker(symbol)
     hist = stock.history(period="6mo")
 
     if hist.empty:
@@ -73,25 +54,21 @@ def get_advice(text):
     return result['labels'][0]
 
 # Streamlit UI
-st.title("📊 Indian Stock Portfolio Advisor (Free AI Powered)")
+st.title("📊 Stock Portfolio Advisor (AI Powered)")
 
 st.markdown("""
-This app analyzes **NSE-listed Indian stocks**, evaluates 6-month performance, and gives investment advice using Hugging Face transformers (100% free tech).
+This app analyzes **stocks**, evaluates 6-month performance, and gives investment advice using Hugging Face transformers (100% free tech).
 """)
 
-# Search box for user input
-user_input = st.text_input("Enter stock name or code:", "Reliance")
+# Streamlit input for stock symbols (can enter any symbol directly)
+user_input = st.text_input("Enter a stock symbol (e.g., AAPL, MSFT, TSLA):")
 
-matched = search_nse_symbols_live(user_input)
-
-if matched:
-    selected_label = st.selectbox("Select a matching stock:", list(matched.keys()))
-    selected_symbol = matched[selected_label]
+if user_input:
     if st.button("Analyze"):
-        results = analyze_portfolio([selected_symbol])
+        results = analyze_portfolio([user_input])
 
         if not results:
-            st.error("No data found. Please try another stock.")
+            st.error("No data found. Please try another stock symbol.")
         else:
             df = pd.DataFrame(results)
 
@@ -111,5 +88,3 @@ if matched:
                 fig, ax = plt.subplots()
                 r['history']['Close'].plot(ax=ax, title=f"{r['symbol']} - 6M Closing Prices")
                 st.pyplot(fig)
-else:
-    st.info("Enter a valid stock name or code and select from suggestions.")
