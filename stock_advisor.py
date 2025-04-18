@@ -82,20 +82,21 @@ search_pool = list(symbol_dict.keys())
 
 # Freeform text box with fuzzy dropdown-style feedback
 user_search = st.text_input("🔍 Type stock name or symbol (e.g., Reliance, INFY.NS, TCS.NS)")
-selected_symbol = None
 
 if user_search:
     # Fuzzy matching for suggestions
     suggestions = process.extract(user_search, search_pool, limit=5)
     matches = [f"{match} ({symbol_dict[match]})" for match, score in suggestions if score > 50]
-
+    
+    # Show suggestions directly in the text box
     if matches:
-        chosen = st.selectbox("Suggestions:", matches)
-        top_match = chosen.split("(")[0].strip()
-        selected_symbol = symbol_dict.get(top_match)
+        st.write("Suggestions: ", matches)
+        selected_symbol = symbol_dict.get(matches[0].split("(")[1][:-1])  # Automatically choose first suggestion
+    else:
+        selected_symbol = None
 
-# Analyze the selected stock when button is clicked
-if selected_symbol and st.button("Analyze"):
+# Allow the user to proceed with the analysis
+if selected_symbol:
     results = analyze_portfolio([selected_symbol])
 
     if not results:
