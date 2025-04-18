@@ -5,7 +5,6 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import torch
 from fuzzywuzzy import process
-import requests
 
 # Ensure device compatibility
 try:
@@ -55,20 +54,24 @@ def get_advice(text):
     result = classifier(text, labels)
     return result['labels'][0]
 
-# Fetch broader stock list dynamically from Yahoo (NSE)
+# Preload common NSE stock symbols using yfinance info
 @st.cache_data
-def get_indian_stock_symbols():
-    try:
-        nse_500 = pd.read_html("https://en.wikipedia.org/wiki/NIFTY_500")[1]
-        nse_500["Symbol"] = nse_500["Symbol"].astype(str).str.strip() + ".NS"
-        symbol_dict = dict(zip(nse_500['Company Name'], nse_500['Symbol']))
-
-        # Also include reverse mapping from symbol to itself for symbol search
-        symbol_dict.update({v: v for v in symbol_dict.values()})
-
-        return symbol_dict
-    except:
-        return {}
+def get_yf_nse_symbols():
+    common_symbols = [
+        "RELIANCE.NS", "TCS.NS", "INFY.NS", "HDFCBANK.NS", "ICICIBANK.NS", "LT.NS",
+        "SBIN.NS", "HINDUNILVR.NS", "ITC.NS", "AXISBANK.NS", "BHARTIARTL.NS", "KOTAKBANK.NS",
+        "ASIANPAINT.NS", "MARUTI.NS", "BAJFINANCE.NS", "SUNPHARMA.NS", "WIPRO.NS"
+    ]
+    data = []
+    for symbol in common_symbols:
+        try:
+            info = yf.Ticker(symbol).info
+            data.append((info.get("longName", symbol), symbol))
+        except:
+            continue
+    symbol_dict = dict(data)
+    symbol_dict.update({v: v for v in symbol_dict.values()})  # Include symbol-to-symbol mapping
+    return symbol_dict
 
 # Streamlit UI
 st.title("\U0001F4C8 Indian Stock Portfolio Advisor (Free AI Powered)")
@@ -78,7 +81,7 @@ This app analyzes **Indian stocks from Yahoo Finance**, evaluates 6-month perfor
 """)
 
 # Load symbol dictionary
-symbol_dict = get_indian_stock_symbols()
+symbol_dict = get_yf_nse_symbols()
 search_pool = list(symbol_dict.keys())
 
 # Freeform text box with fuzzy dropdown-style feedback
