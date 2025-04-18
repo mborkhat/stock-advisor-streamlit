@@ -4,7 +4,6 @@ from transformers import pipeline
 import pandas as pd
 import matplotlib.pyplot as plt
 import torch
-from fuzzywuzzy import process
 
 # Ensure device compatibility
 try:
@@ -22,23 +21,9 @@ RISK_THRESHOLDS = {
     "high": 20
 }
 
-# Use a CSV-based NSE symbol lookup to avoid API issues
-@st.cache_data
-def load_nse_symbols():
-    url = "https://raw.githubusercontent.com/justindujardin/nse-india/main/nse_stocks.csv"
-    df = pd.read_csv(url)
-    df = df[df['series'] == 'EQ']  # Only EQ stocks
-    df['label'] = df['nameOfCompany'] + " (" + df['symbol'] + ")"
-    return dict(zip(df['label'], df['symbol']))
-
-# Function to search and match stock names dynamically
-def search_stock(query, symbols_dict):
-    results = process.extract(query, symbols_dict.keys(), limit=10)
-    return [res[0] for res in results]
-
-# Fetch stock data
+# Function to fetch stock data from Yahoo Finance
 def fetch_stock_summary(symbol):
-    stock = yf.Ticker(symbol + ".NS")
+    stock = yf.Ticker(symbol)
     hist = stock.history(period="6mo")
 
     if hist.empty:
@@ -58,6 +43,10 @@ def fetch_stock_summary(symbol):
         "history": hist
     }
 
+# Analyze multiple stocks
+def analyze_portfolio(symbols):
+    return [fetch_stock_summary(sym) for sym in symbols if fetch_stock_summary(sym) is not None]
+
 # Classify recommendation using Hugging Face
 def get_advice(text):
     labels = ["Buy", "Hold", "Avoid"]
@@ -68,47 +57,47 @@ def get_advice(text):
 st.title("📊 Indian Stock Portfolio Advisor (Free AI Powered)")
 
 st.markdown("""
-This app analyzes **NSE-listed Indian stocks**, evaluates 6-month performance, and gives investment advice using Hugging Face transformers (100% free tech).
+This app analyzes **Indian stocks from Yahoo Finance**, evaluates 6-month performance, and gives investment advice using Hugging Face transformers (100% free tech).
 """)
 
-# Load symbols
-symbols_dict = load_nse_symbols()
+# Search for stock tickers dynamically
+search_term = st.text_input("Search for a stock (e.g., Reliance, TCS, etc.):", "")
 
-# Autocomplete stock search input
-user_input = st.text_input("Enter a stock name:")
-if user_input:
-    # Search for similar stock names using fuzzy matching
-    matched_stocks = search_stock(user_input, symbols_dict)
-    
-    if matched_stocks:
-        selected_stock = st.selectbox("Select a stock:", options=matched_stocks)
-        selected_symbol = symbols_dict[selected_stock]
-        
-        if st.button("Analyze"):
-            results = [fetch_stock_summary(selected_symbol)]
-            
-            if not results:
-                st.error("No data found. Please try another stock.")
-            else:
-                df = pd.DataFrame(results)
-                
-                st.subheader("📈 Summary Table")
-                st.dataframe(df[["symbol", "current_price", "pct_change", "risk"]])
+# Use Yahoo Finance's Ticker symbols (no need for external CSV)
+if search_term:
+    # Autocomplete and display stock suggestions
+    try:
+        stock_data = yf.Ticker(search_term)
+        stock_info = stock_data.info
+        stock_name = stock_info['longName'] if 'longName' in stock_info else "Unknown"
+        st.write(f"Stock found: **{stock_name}**")
+        selected_symbol = search_term
+    except Exception as e:
+        st.error(f"Error fetching stock: {e}")
+        selected_symbol = None
 
-                st.subheader("🧠 AI-Powered Recommendation")
-                for r in results:
-                    prompt = (f"The stock {r['symbol']} has changed {r['pct_change']:.2f}% over 6 months. "
-                              f"The current price is ₹{r['current_price']:.2f}. Risk level is {r['risk']}. Should I invest?")
-                    recommendation = get_advice(prompt)
-                    st.write(f"**{r['symbol']}**: {recommendation} — *{prompt}*")
+# Analyze selected stock when user presses the button
+if selected_symbol and st.button("Analyze"):
+    results = analyze_portfolio([selected_symbol])
 
-                st.subheader("📉 6-Month Price Chart")
-                for r in results:
-                    st.write(f"### {r['symbol']}")
-                    fig, ax = plt.subplots()
-                    r['history']['Close'].plot(ax=ax, title=f"{r['symbol']} - 6M Closing Prices")
-                    st.pyplot(fig)
+    if not results:
+        st.error("No data found. Please try another stock.")
     else:
-        st.warning("No matching stocks found. Please try a more specific search.")
-else:
-    st.write("Please enter a stock name to get started.")
+        df = pd.DataFrame(results)
+
+        st.subheader("📈 Summary Table")
+        st.dataframe(df[["symbol", "current_price", "pct_change", "risk"]])
+
+        st.subheader("🧠 AI-Powered Recommendation")
+        for r in results:
+            prompt = (f"The stock {r['symbol']} has changed {r['pct_change']:.2f}% over 6 months. "
+                      f"The current price is ₹{r['current_price']:.2f}. Risk level is {r['risk']}. Should I invest?")
+            recommendation = get_advice(prompt)
+            st.write(f"**{r['symbol']}**: {recommendation} — *{prompt}*")
+
+        st.subheader("📉 6-Month Price Chart")
+        for r in results:
+            st.write(f"### {r['symbol']}")
+            fig, ax = plt.subplots()
+            r['history']['Close'].plot(ax=ax, title=f"{r['symbol']} - 6M Closing Prices")
+            st.pyplot(fig)
