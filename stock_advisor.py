@@ -54,20 +54,14 @@ def get_advice(text):
     result = classifier(text, labels)
     return result['labels'][0]
 
-# Fetch broader stock list dynamically from Yahoo (NSE)
-@st.cache_data
-def get_indian_stock_symbols():
+# Function to search stock symbols on Yahoo Finance
+def search_yahoo_finance(query):
+    # Search Yahoo Finance for the query (e.g., "Reliance", "INFY", etc.)
     try:
-        nse_500 = pd.read_html("https://en.wikipedia.org/wiki/NIFTY_500")[1]
-        nse_500["Symbol"] = nse_500["Symbol"].astype(str).str.strip() + ".NS"
-        symbol_dict = dict(zip(nse_500['Company Name'], nse_500['Symbol']))
-
-        # Also include reverse mapping from symbol to itself for symbol search
-        symbol_dict.update({v: v for v in symbol_dict.values()})
-
-        return symbol_dict
-    except:
-        return {}
+        search_result = yf.Tickers(query)
+        return search_result.tickers
+    except Exception as e:
+        return None
 
 # Streamlit UI
 st.title("📊 Indian Stock Portfolio Advisor (Free AI Powered)")
@@ -76,24 +70,18 @@ st.markdown("""
 This app analyzes **Indian stocks from Yahoo Finance**, evaluates 6-month performance, and gives investment advice using Hugging Face transformers (100% free tech).
 """)
 
-# Load symbol dictionary
-symbol_dict = get_indian_stock_symbols()
-search_pool = list(symbol_dict.keys())
-
-# Freeform text box with fuzzy dropdown-style feedback
+# Search for symbols dynamically using Yahoo Finance
 user_search = st.text_input("🔍 Type stock name or symbol (e.g., Reliance, INFY.NS, TCS.NS)")
+selected_symbol = None  # Initialize selected_symbol
 
 if user_search:
-    # Fuzzy matching for suggestions
-    suggestions = process.extract(user_search, search_pool, limit=5)
-    matches = [f"{match} ({symbol_dict[match]})" for match, score in suggestions if score > 50]
-    
-    # Show suggestions directly in the text box
-    if matches:
-        st.write("Suggestions: ", matches)
-        selected_symbol = symbol_dict.get(matches[0].split("(")[1][:-1])  # Automatically choose first suggestion
-    else:
-        selected_symbol = None
+    # Search for stock data on Yahoo Finance
+    tickers = search_yahoo_finance(user_search)
+    if tickers:
+        matches = [ticker for ticker in tickers if user_search.lower() in ticker.info['longName'].lower()]
+        if matches:
+            st.write("Suggestions: ", [match.info['symbol'] for match in matches])
+            selected_symbol = matches[0].info['symbol']  # Automatically choose the first match
 
 # Allow the user to proceed with the analysis
 if selected_symbol:
