@@ -9,7 +9,7 @@ import requests
 import re
 
 # NEWS API KEY (replace with your key)
-NEWS_API_KEY = "43519c8a11d042d39bf873d5d8cb0c6b"
+NEWS_API_KEY = st.secrets["NEWS_API_KEY"]
 
 # Ensure device compatibility (CPU only to avoid meta tensor errors)
 classifier = pipeline(
