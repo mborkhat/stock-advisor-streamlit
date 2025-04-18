@@ -54,14 +54,11 @@ def get_advice(text):
     result = classifier(text, labels)
     return result['labels'][0]
 
-# Function to search stock symbols on Yahoo Finance
-def search_yahoo_finance(query):
-    # Search Yahoo Finance for the query (e.g., "Reliance", "INFY", etc.)
-    try:
-        search_result = yf.Tickers(query)
-        return search_result.tickers
-    except Exception as e:
-        return None
+# Function to get stock symbols dynamically (example: can be extended)
+def get_yahoo_stock_symbols(query):
+    # Placeholder: return a list of symbols for the demo (in real-world, this can be fetched from a larger symbol dataset or API)
+    all_symbols = ["RELIANCE.NS", "TCS.NS", "INFY.NS", "HDFC.NS", "ICICIBANK.NS", "SBIN.NS", "BAJAJ-AUTO.NS", "BHARTIARTL.NS"]
+    return [symbol for symbol in all_symbols if query.lower() in symbol.lower()]
 
 # Streamlit UI
 st.title("📊 Indian Stock Portfolio Advisor (Free AI Powered)")
@@ -70,20 +67,22 @@ st.markdown("""
 This app analyzes **Indian stocks from Yahoo Finance**, evaluates 6-month performance, and gives investment advice using Hugging Face transformers (100% free tech).
 """)
 
-# Search for symbols dynamically using Yahoo Finance
+# Search for symbols dynamically from Yahoo (limited example list)
 user_search = st.text_input("🔍 Type stock name or symbol (e.g., Reliance, INFY.NS, TCS.NS)")
 selected_symbol = None  # Initialize selected_symbol
 
 if user_search:
-    # Search for stock data on Yahoo Finance
-    tickers = search_yahoo_finance(user_search)
-    if tickers:
-        matches = [ticker for ticker in tickers if user_search.lower() in ticker.info['longName'].lower()]
-        if matches:
-            st.write("Suggestions: ", [match.info['symbol'] for match in matches])
-            selected_symbol = matches[0].info['symbol']  # Automatically choose the first match
+    # Get stock symbols matching the search query
+    suggestions = get_yahoo_stock_symbols(user_search)
+    if suggestions:
+        # Fuzzy matching for better UX
+        matches = process.extract(user_search, suggestions, limit=5)
+        match_list = [match[0] for match in matches if match[1] > 50]  # Filter based on match score
 
-# Allow the user to proceed with the analysis
+        if match_list:
+            selected_symbol = st.selectbox("Suggestions:", match_list)
+
+# Allow the user to proceed with the analysis if a symbol is selected
 if selected_symbol:
     results = analyze_portfolio([selected_symbol])
 
