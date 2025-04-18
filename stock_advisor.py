@@ -2,29 +2,32 @@ import streamlit as st
 import yfinance as yf
 from transformers import pipeline
 import pandas as pd
-import matplotlib.pyplot as plt
+import plotly.graph_objects as go
 import torch
 from fuzzywuzzy import process
 import requests
 import re
-import plotly.graph_objects as go
 
 # NEWS API KEY (replace with your key)
 NEWS_API_KEY = "your_newsapi_key_here"
 
 # Ensure device compatibility (CPU if CUDA is not available)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+# Load Hugging Face zero-shot classifier
 classifier = pipeline("zero-shot-classification", model="facebook/bart-large-mnli", device=0 if torch.cuda.is_available() else -1)
 
+# Define risk metrics and thresholds
 RISK_THRESHOLDS = {
     "low": 5,
     "medium": 10,
     "high": 20
 }
 
+# Fetch stock data from Yahoo Finance (5-year history)
 def fetch_stock_summary(symbol):
     stock = yf.Ticker(symbol)
-    hist = stock.history(period="5y")  # Changed to 5 years
+    hist = stock.history(period="5y")
 
     if hist.empty:
         return None
@@ -48,29 +51,38 @@ def fetch_stock_summary(symbol):
         "history": hist
     }
 
+# Analyze multiple stocks
+def analyze_portfolio(symbols):
+    return [fetch_stock_summary(sym) for sym in symbols if fetch_stock_summary(sym) is not None]
+
+# Classify recommendation using Hugging Face
 def get_advice(text):
     labels = ["Buy", "Hold", "Avoid"]
     result = classifier(text, labels)
     return result['labels'][0]
 
+# Fetch Nifty 50 symbols dynamically
 def get_nifty_50_symbols():
-    return [
-        "RELIANCE.NS", "TCS.NS", "INFY.NS", "HDFC.NS", "ICICIBANK.NS", "SBIN.NS",
+    nifty_50_symbols = [
+        "RELIANCE.NS", "TCS.NS", "INFY.NS", "HDFC.NS", "ICICIBANK.NS", "SBIN.NS", 
         "BAJAJ-AUTO.NS", "BHARTIARTL.NS", "M&M.NS", "KOTAKBANK.NS", "LT.NS", "ITC.NS",
         "HUL.NS", "AXISBANK.NS", "MARUTI.NS", "ULTRACEMCO.NS", "WIPRO.NS", "SUNPHARMA.NS",
         "HCLTECH.NS", "ONGC.NS", "BAJAJFINSV.NS", "TITAN.NS", "NTPC.NS", "ADANIGREEN.NS",
-        "POWERGRID.NS", "ASIANPAINT.NS", "JSWSTEEL.NS", "DRREDDY.NS", "INDUSINDBK.NS",
-        "BHEL.NS", "VEDL.NS", "SHREECEM.NS", "HINDALCO.NS", "M&MFIN.NS", "EICHERMOT.NS",
-        "GAIL.NS", "COALINDIA.NS", "BOSCHLTD.NS", "HDFCBANK.NS", "CIPLA.NS", "MARICO.NS",
-        "UPL.NS", "RECLTD.NS", "TECHM.NS", "DIVISLAB.NS", "PIDILITIND.NS", "MOTHERSUMI.NS",
-        "TATAMOTORS.NS"
+        "POWERGRID.NS", "ASIANPAINT.NS", "JSWSTEEL.NS", "DRREDDY.NS", "INDUSINDBK.NS", 
+        "BHEL.NS", "VEDL.NS", "SHREECEM.NS", "HINDALCO.NS", "M&MFIN.NS", "EICHERMOT.NS", 
+        "GAIL.NS", "COALINDIA.NS", "BOSCHLTD.NS", "HDFCBANK.NS", "CIPLA.NS", "MARICO.NS", 
+        "UPL.NS", "RECLTD.NS", "TECHM.NS", "DIVISLAB.NS", "PIDILITIND.NS", "MOTHERSUMI.NS", 
+        "TATAMOTORS.NS", "TCS.NS"
     ]
+    return nifty_50_symbols
 
+# Function to fetch stock symbols from user search
 def get_yahoo_stock_symbols(query):
     tickers = get_nifty_50_symbols()
-    matched = process.extract(query, tickers, limit=5)
-    return [m[0] for m in matched if m[1] > 50]
+    matched_tickers = process.extract(query, tickers, limit=5)
+    return [match[0] for match in matched_tickers if match[1] > 50]
 
+# Fetch latest news articles related to the stock
 def fetch_stock_news(symbol):
     company = re.sub(r'\W+', ' ', symbol.replace('.NS', '')).strip()
     url = f"https://newsapi.org/v2/everything?q={company}&language=en&sortBy=publishedAt&apiKey={NEWS_API_KEY}"
@@ -86,40 +98,44 @@ def fetch_stock_news(symbol):
     return []
 
 # Streamlit UI
-st.title("\U0001F4C8 Indian Stock Portfolio Advisor (Free AI Powered)")
+st.title("📊 Indian Stock Portfolio Advisor (Free AI Powered)")
 
 st.markdown("""
 This app analyzes **Indian stocks from Yahoo Finance**, evaluates 5-year performance, and gives investment advice using Hugging Face transformers (100% free tech).
 """)
 
-user_search = st.text_input("\U0001F50D Type stock name or symbol (e.g., Reliance, INFY.NS, TCS.NS)")
-selected_symbol = None
+# Search for symbols dynamically from Yahoo Finance
+user_search = st.text_input("🔍 Type stock name or symbol (e.g., Reliance, INFY.NS, TCS.NS)")
+selected_symbol = None  # Initialize selected_symbol
 
 if user_search:
+    # Get stock symbols matching the search query
     suggestions = get_yahoo_stock_symbols(user_search)
     if suggestions:
+        # Display suggestions to the user
         selected_symbol = st.selectbox("Suggestions:", suggestions)
 
+# Allow the user to proceed with the analysis if a symbol is selected
 if selected_symbol:
     result = fetch_stock_summary(selected_symbol)
 
     if not result:
         st.error("No data found. Please try another stock symbol.")
     else:
-        st.subheader("\U0001F4C8 Stock Summary")
+        st.subheader("📈 Stock Summary")
         st.write(f"**{result['symbol']}**: Current price ₹{result['current_price']:.2f}")
         st.write(f"**52 Week High**: ₹{result['week_52_high']}, **52 Week Low**: ₹{result['week_52_low']}")
         st.write(f"Performance over 5 years: {result['pct_change']:.2f}%")
         st.write(f"Risk level: {result['risk']}")
 
-        prompt = (
-            f"The stock {result['symbol']} has changed {result['pct_change']:.2f}% over 5 years. "
-            f"The current price is ₹{result['current_price']:.2f}. Risk level is {result['risk']}. Should I invest?"
-        )
+        # Display AI recommendation
+        prompt = (f"The stock {result['symbol']} has changed {result['pct_change']:.2f}% over 5 years. "
+                  f"The current price is ₹{result['current_price']:.2f}. Risk level is {result['risk']}. Should I invest?")
         recommendation = get_advice(prompt)
         st.write(f"**Recommendation**: {recommendation}")
 
-        st.subheader("\U0001F4F0 Latest News")
+        # Fetch and display the latest news articles
+        st.subheader("📰 Latest News")
         articles = fetch_stock_news(result['symbol'])
         if articles:
             for article in articles:
@@ -129,26 +145,17 @@ if selected_symbol:
         else:
             st.write("No news found for this stock.")
 
-        # Chart Section
+        # Display stock price chart (5 years)
         st.subheader("📉 5-Year Price Chart")
-        if not result['history'].empty:
-            fig = go.Figure()
-            fig.add_trace(go.Scatter(
-                x=result['history'].index,
-                y=result['history']['Close'],
-                mode='lines',
-                name='Closing Price',
-                line=dict(color='royalblue'),
-                hovertemplate='Date: %{x}<br>Price: ₹%{y:.2f}<extra></extra>'
-            ))
-            fig.update_layout(
-                title=f"{result['symbol']} - 5Y Closing Prices",
-                xaxis_title="Date",
-                yaxis_title="Price (₹)",
-                hovermode="x unified",
-                template="plotly_white",
-                height=500
-            )
-            st.plotly_chart(fig, use_container_width=True)
-        else:
-            st.warning("Price history not available.")
+        fig = go.Figure(data=[go.Candlestick(x=result['history'].index,
+                                            open=result['history']['Open'],
+                                            high=result['history']['High'],
+                                            low=result['history']['Low'],
+                                            close=result['history']['Close'])])
+
+        fig.update_layout(title=f"{result['symbol']} - 5Y Price Chart",
+                          xaxis_title="Date",
+                          yaxis_title="Price (₹)",
+                          hovermode="x unified")
+
+        st.plotly_chart(fig)
