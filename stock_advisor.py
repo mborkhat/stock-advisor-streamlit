@@ -100,7 +100,7 @@ user_search = st.text_input("\U0001F50D Type stock name or symbol (e.g., Relianc
 selected_symbol = None
 
 time_range = st.selectbox("Select performance period:", (
-   "7d", "6mo", "1y", "2y", "3y", "4y", "5y"), index=0)
+    "7d", "6mo", "1y", "2y", "3y", "4y", "5y"), index=0)
 
 if user_search:
     suggestions = get_yahoo_stock_symbols(user_search)
@@ -113,31 +113,41 @@ if selected_symbol:
     if not result:
         st.error("No data found. Please try another stock symbol.")
     else:
-        st.subheader("\U0001F4C8 Stock Summary")
-        st.write(f"**{result['symbol']}**: Current price ₹{result['current_price']:.2f}")
-        st.write(f"**52 Week High**: ₹{result['week_52_high']}, **52 Week Low**: ₹{result['week_52_low']}")
-        st.write(f"Performance over {time_range}: {result['pct_change']:.2f}%")
-        st.write(f"Risk level: {result['risk']}")
+        # Organize stock summary in a column layout for better mobile view
+        col1, col2 = st.columns([1, 2])
 
-        prompt = (
-            f"The stock {result['symbol']} has changed {result['pct_change']:.2f}% over {time_range}. "
-            f"The current price is ₹{result['current_price']:.2f}. Risk level is {result['risk']}. Should I invest?"
-        )
-        recommendation = get_advice(prompt)
-        st.write(f"**Recommendation**: {recommendation}")
+        with col1:
+            st.subheader("\U0001F4C8 Stock Summary")
+            st.write(f"**{result['symbol']}**: Current price ₹{result['current_price']:.2f}")
+            st.write(f"**52 Week High**: ₹{result['week_52_high']}, **52 Week Low**: ₹{result['week_52_low']}")
+            st.write(f"Performance over {time_range}: {result['pct_change']:.2f}%")
+            st.write(f"Risk level: {result['risk']}")
 
-        st.subheader("\U0001F4F0 Latest News")
-        articles = fetch_stock_news(result['symbol'])
-        if articles:
-            for article in articles:
-                st.write(f"- **{article['title']}**")
-                st.write(f"  Source: {article['source']} | Date: {article['date']}")
-                st.write(f"  [Read more]({article['url']})")
-        else:
-            st.write("No news found for this stock.")
+        with col2:
+            prompt = (
+                f"The stock {result['symbol']} has changed {result['pct_change']:.2f}% over {time_range}. "
+                f"The current price is ₹{result['current_price']:.2f}. Risk level is {result['risk']}. Should I invest?"
+            )
+            recommendation = get_advice(prompt)
+            st.write(f"**Recommendation**: {recommendation}")
 
+        # Expandable section for news
+        with st.expander("🔍 Latest News"):
+            articles = fetch_stock_news(result['symbol'])
+            if articles:
+                for article in articles:
+                    st.write(f"- **{article['title']}**")
+                    st.write(f"  Source: {article['source']} | Date: {article['date']}")
+                    st.write(f"  [Read more]({article['url']})")
+            else:
+                st.write("No news found for this stock.")
+
+        # Display price chart with 7-day moving average if selected
         st.subheader(f"\U0001F4C9 {time_range} Price Chart")
         hist = result['history']
+        
+        if time_range == '7d':
+            hist = hist.tail(7)  # Get only the last 7 days
         
         # Calculate the 7-day Moving Average
         hist['7_day_MA'] = hist['Close'].rolling(window=7).mean()
@@ -159,4 +169,3 @@ if selected_symbol:
             height=500
         )
         st.plotly_chart(fig, use_container_width=True)
-
