@@ -7,9 +7,10 @@ import torch
 from fuzzywuzzy import process
 import requests
 import re
+from yahoo_fin import stock_info as si
 
 # NEWS API KEY (replace with your key)
-NEWS_API_KEY = "43519c8a11d042d39bf873d5d8cb0c6b"
+NEWS_API_KEY = "your_newsapi_key_here"
 
 # Ensure device compatibility (CPU only to avoid meta tensor errors)
 classifier = pipeline(
@@ -73,11 +74,11 @@ def get_yahoo_stock_symbols(query):
     matched = process.extract(query, tickers, limit=5)
     return [m[0] for m in matched if m[1] > 50]
 
-def fetch_stock_news(symbol):
+def fetch_newsapi_articles(symbol):
     stock = yf.Ticker(symbol)
     company_name = stock.info.get("longName", re.sub(r'[\W_]+', ' ', symbol.replace('.NS', '')).strip())
     query = f'"{company_name}" AND stock'
-    url = f"https://newsapi.org/v2/everything?q={query}&language=en&sortBy=publishedAt&pageSize=5&apiKey={NEWS_API_KEY}"
+    url = f"https://newsapi.org/v2/everything?q={query}&language=en&sortBy=publishedAt&pageSize=10&apiKey={NEWS_API_KEY}"
     response = requests.get(url)
     if response.status_code == 200:
         data = response.json()
@@ -89,6 +90,23 @@ def fetch_stock_news(symbol):
         } for a in data.get('articles', [])]
     return []
 
+def fetch_yahoo_finance_news(symbol):
+    try:
+        news_items = si.get_news(symbol)
+        return [{
+            'title': n['title'],
+            'source': 'Yahoo Finance',
+            'url': n['link'],
+            'date': pd.to_datetime(n['publisher_date']).strftime('%Y-%m-%d %H:%M') if 'publisher_date' in n else 'N/A'
+        } for n in news_items[:5]]
+    except:
+        return []
+
+def fetch_stock_news(symbol):
+    articles = fetch_newsapi_articles(symbol)
+    yahoo_articles = fetch_yahoo_finance_news(symbol)
+    all_articles = {a['title']: a for a in articles + yahoo_articles}
+    return list(all_articles.values())[:5]
 
 # Streamlit UI
 st.title("\U0001F4C8 Indian Stock Portfolio Advisor (Free AI Powered)")
