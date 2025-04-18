@@ -6,7 +6,6 @@ import matplotlib.pyplot as plt
 import torch
 from fuzzywuzzy import process
 import requests
-from bs4 import BeautifulSoup
 
 # Ensure device compatibility
 try:
@@ -56,25 +55,28 @@ def get_advice(text):
     result = classifier(text, labels)
     return result['labels'][0]
 
-# Scrape stock symbols from 5Paisa
-def fetch_5paisa_stock_symbols():
-    url = 'https://www.5paisa.com/stocks/all'
+# Fetch Nifty 50 symbols dynamically from Yahoo Finance
+def get_nifty_50_symbols():
+    url = "https://query1.finance.yahoo.com/v7/finance/quote?symbols=NSE%3ANIFTY50"
     response = requests.get(url)
+    data = response.json()
 
-    if response.status_code != 200:
-        return []
+    # Extract symbols from the response
+    symbols = []
+    if "quoteResponse" in data and "result" in data["quoteResponse"]:
+        for stock in data["quoteResponse"]["result"]:
+            symbols.append(stock['symbol'])
 
-    soup = BeautifulSoup(response.content, 'html.parser')
-    stock_elements = soup.find_all('a', {'class': 'stock-name'})
+    return symbols
 
-    stock_symbols = []
+# Function to fetch stock symbols from user search
+def get_yahoo_stock_symbols(query):
+    # Get Nifty 50 symbols dynamically (can be changed for other indexes or lists)
+    tickers = get_nifty_50_symbols()
 
-    for element in stock_elements:
-        symbol = element.get_text().strip()
-        if symbol:  # Ensure it's not an empty string
-            stock_symbols.append(symbol)
-
-    return stock_symbols
+    # Match query with tickers (use fuzzy matching here)
+    matched_tickers = process.extract(query, tickers, limit=5)
+    return [match[0] for match in matched_tickers if match[1] > 50]
 
 # Streamlit UI
 st.title("📊 Indian Stock Portfolio Advisor (Free AI Powered)")
@@ -83,18 +85,16 @@ st.markdown("""
 This app analyzes **Indian stocks from Yahoo Finance**, evaluates 6-month performance, and gives investment advice using Hugging Face transformers (100% free tech).
 """)
 
-# Fetch stock symbols dynamically from 5Paisa
-stock_symbols = fetch_5paisa_stock_symbols()
-
-user_search = st.text_input("🔍 Type stock name or symbol (e.g., Reliance, INFY.BO, TCS.BO)")
-selected_symbol = None
+# Search for symbols dynamically from Yahoo Finance
+user_search = st.text_input("🔍 Type stock name or symbol (e.g., Reliance, INFY.NS, TCS.NS)")
+selected_symbol = None  # Initialize selected_symbol
 
 if user_search:
     # Get stock symbols matching the search query
-    suggestions = process.extract(user_search, stock_symbols, limit=5)
+    suggestions = get_yahoo_stock_symbols(user_search)
     if suggestions:
         # Display suggestions to the user
-        selected_symbol = st.selectbox("Suggestions:", [match[0] for match in suggestions])
+        selected_symbol = st.selectbox("Suggestions:", suggestions)
 
 # Allow the user to proceed with the analysis if a symbol is selected
 if selected_symbol:
