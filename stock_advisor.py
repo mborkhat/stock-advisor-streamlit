@@ -10,7 +10,7 @@ import re
 from yahoo_fin import stock_info as si
 
 # NEWS API KEY (replace with your key)
-NEWS_API_KEY = "your_newsapi_key_here"
+NEWS_API_KEY = "43519c8a11d042d39bf873d5d8cb0c6b"
 
 # Ensure device compatibility (CPU only to avoid meta tensor errors)
 classifier = pipeline(
