@@ -7,7 +7,6 @@ import torch
 from fuzzywuzzy import process
 import requests
 import re
-from yahoo_fin import stock_info as si
 
 # NEWS API KEY (replace with your key)
 NEWS_API_KEY = "43519c8a11d042d39bf873d5d8cb0c6b"
@@ -74,7 +73,7 @@ def get_yahoo_stock_symbols(query):
     matched = process.extract(query, tickers, limit=5)
     return [m[0] for m in matched if m[1] > 50]
 
-def fetch_newsapi_articles(symbol):
+def fetch_stock_news(symbol):
     stock = yf.Ticker(symbol)
     company_name = stock.info.get("longName", re.sub(r'[\W_]+', ' ', symbol.replace('.NS', '')).strip())
     query = f'"{company_name}" AND stock'
@@ -87,26 +86,8 @@ def fetch_newsapi_articles(symbol):
             'source': a['source']['name'],
             'url': a['url'],
             'date': pd.to_datetime(a['publishedAt']).strftime('%Y-%m-%d %H:%M')
-        } for a in data.get('articles', [])]
+        } for a in data.get('articles', [])[:3]]
     return []
-
-def fetch_yahoo_finance_news(symbol):
-    try:
-        news_items = si.get_news(symbol)
-        return [{
-            'title': n['title'],
-            'source': 'Yahoo Finance',
-            'url': n['link'],
-            'date': pd.to_datetime(n['publisher_date']).strftime('%Y-%m-%d %H:%M') if 'publisher_date' in n else 'N/A'
-        } for n in news_items[:5]]
-    except:
-        return []
-
-def fetch_stock_news(symbol):
-    articles = fetch_newsapi_articles(symbol)
-    yahoo_articles = fetch_yahoo_finance_news(symbol)
-    all_articles = {a['title']: a for a in articles + yahoo_articles}
-    return list(all_articles.values())[:5]
 
 # Streamlit UI
 st.title("\U0001F4C8 Indian Stock Portfolio Advisor (Free AI Powered)")
@@ -157,8 +138,19 @@ if selected_symbol:
 
         st.subheader(f"\U0001F4C9 {time_range} Price Chart")
         hist = result['history']
+        
+        # Calculate the 7-day Moving Average
+        hist['7_day_MA'] = hist['Close'].rolling(window=7).mean()
+        
+        # Plot the price chart and the moving average
         fig = go.Figure()
+
+        # Plot stock price
         fig.add_trace(go.Scatter(x=hist.index, y=hist['Close'], mode='lines+markers', name='Close Price', text=hist['Close'], hovertemplate='Date: %{x}<br>Price: ₹%{y:.2f}<extra></extra>'))
+        
+        # Plot 7-day Moving Average
+        fig.add_trace(go.Scatter(x=hist.index, y=hist['7_day_MA'], mode='lines', name='7-Day Moving Average', line=dict(dash='dash')))
+
         fig.update_layout(
             title=f"{result['symbol']} - {time_range} Closing Prices",
             xaxis_title='Date',
@@ -167,3 +159,4 @@ if selected_symbol:
             height=500
         )
         st.plotly_chart(fig, use_container_width=True)
+
