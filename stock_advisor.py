@@ -30,17 +30,19 @@ def search_nse_symbols_live(query):
         # Check if data is returned
         if 'symbols' not in data:
             st.error("Error fetching data from NSE API. Please try again later.")
-            return {}
+            return []
 
         # Extract stock symbols and map them to their names
-        matches = {item['label']: item['symbol'] for item in data['symbols'] if item['symbol'].endswith("EQ")}
-        if not matches:
-            st.warning(f"No stocks found for '{query}'. Please try another search term.")
+        matches = [
+            {"label": item['label'], "symbol": item['symbol']}
+            for item in data['symbols'] if item['symbol'].endswith("EQ")
+        ]
+        
         return matches
 
     except Exception as e:
         st.error(f"An error occurred while fetching data: {str(e)}")
-        return {}
+        return []
 
 # Fetch stock data
 def fetch_stock_summary(symbol):
@@ -82,37 +84,44 @@ This app analyzes **NSE-listed Indian stocks**, evaluates 6-month performance, a
 """)
 
 # Search box for user input
-user_input = st.text_input("Enter stock name or code:", "Reliance")
+user_input = st.text_input("Enter stock name or code:")
 
-# Fetch matching stocks
-matched = search_nse_symbols_live(user_input)
+if user_input:
+    # Fetch matching stocks dynamically as the user types
+    matched = search_nse_symbols_live(user_input)
 
-if matched:
-    selected_label = st.selectbox("Select a matching stock:", list(matched.keys()))
-    selected_symbol = matched[selected_label]
-    if st.button("Analyze"):
-        results = analyze_portfolio([selected_symbol])
+    if matched:
+        selected_symbol = st.selectbox("Select a stock:", [item['label'] for item in matched])
 
-        if not results:
-            st.error("No data found. Please try another stock.")
-        else:
-            df = pd.DataFrame(results)
+        # Get the corresponding symbol for the selected stock
+        selected_symbol_code = next(item['symbol'] for item in matched if item['label'] == selected_symbol)
 
-            st.subheader("📈 Summary Table")
-            st.dataframe(df[["symbol", "current_price", "pct_change", "risk"]])
+        if st.button("Analyze"):
+            results = analyze_portfolio([selected_symbol_code])
 
-            st.subheader("🧠 AI-Powered Recommendation")
-            for r in results:
-                prompt = (f"The stock {r['symbol']} has changed {r['pct_change']:.2f}% over 6 months. "
-                          f"The current price is ₹{r['current_price']:.2f}. Risk level is {r['risk']}. Should I invest?")
-                recommendation = get_advice(prompt)
-                st.write(f"**{r['symbol']}**: {recommendation} — *{prompt}*")
+            if not results:
+                st.error("No data found. Please try another stock.")
+            else:
+                df = pd.DataFrame(results)
 
-            st.subheader("📉 6-Month Price Chart")
-            for r in results:
-                st.write(f"### {r['symbol']}")
-                fig, ax = plt.subplots()
-                r['history']['Close'].plot(ax=ax, title=f"{r['symbol']} - 6M Closing Prices")
-                st.pyplot(fig)
+                st.subheader("📈 Summary Table")
+                st.dataframe(df[["symbol", "current_price", "pct_change", "risk"]])
+
+                st.subheader("🧠 AI-Powered Recommendation")
+                for r in results:
+                    prompt = (f"The stock {r['symbol']} has changed {r['pct_change']:.2f}% over 6 months. "
+                              f"The current price is ₹{r['current_price']:.2f}. Risk level is {r['risk']}. Should I invest?")
+                    recommendation = get_advice(prompt)
+                    st.write(f"**{r['symbol']}**: {recommendation} — *{prompt}*")
+
+                st.subheader("📉 6-Month Price Chart")
+                for r in results:
+                    st.write(f"### {r['symbol']}")
+                    fig, ax = plt.subplots()
+                    r['history']['Close'].plot(ax=ax, title=f"{r['symbol']} - 6M Closing Prices")
+                    st.pyplot(fig)
+
+    else:
+        st.warning("No stocks found for the entered query. Try another name or code.")
 else:
-    st.info("Enter a valid stock name or code and select from suggestions.")
+    st.info("Please enter a stock name or code to get started.")
