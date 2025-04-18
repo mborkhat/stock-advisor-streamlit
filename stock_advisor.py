@@ -9,7 +9,7 @@ import requests
 import re
 
 # NEWS API KEY (replace with your key)
-NEWS_API_KEY = "your_newsapi_key_here"
+NEWS_API_KEY = "43519c8a11d042d39bf873d5d8cb0c6b"
 
 # Ensure device compatibility (CPU if CUDA is not available)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
