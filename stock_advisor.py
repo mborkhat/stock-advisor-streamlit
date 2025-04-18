@@ -5,6 +5,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import torch
 from fuzzywuzzy import process
+import requests
 
 # Ensure device compatibility
 try:
@@ -54,13 +55,13 @@ def get_advice(text):
     result = classifier(text, labels)
     return result['labels'][0]
 
-# Get broader list of Indian stocks using yfinance
+# Fetch broader stock list dynamically from Yahoo (NSE)
 @st.cache_data
-def get_yahoo_symbols():
-    tickers = yf.tickers.Tickers("^NSEI")
+def get_indian_stock_symbols():
     try:
-        index_tickers = pd.read_html("https://en.wikipedia.org/wiki/NIFTY_500")[1]  # or broader list
-        symbol_dict = dict(zip(index_tickers['Company Name'], index_tickers['Symbol'].apply(lambda x: x + ".NS")))
+        nse_500 = pd.read_html("https://en.wikipedia.org/wiki/NIFTY_500")[1]
+        nse_500["Symbol"] = nse_500["Symbol"].astype(str).str.strip() + ".NS"
+        symbol_dict = dict(zip(nse_500['Company Name'], nse_500['Symbol']))
         return symbol_dict
     except:
         return {}
@@ -72,22 +73,20 @@ st.markdown("""
 This app analyzes **Indian stocks from Yahoo Finance**, evaluates 6-month performance, and gives investment advice using Hugging Face transformers (100% free tech).
 """)
 
-# Load dynamic list of symbols
-symbol_dict = get_yahoo_symbols()
+# Load symbol dictionary
+symbol_dict = get_indian_stock_symbols()
 company_names = list(symbol_dict.keys())
 
+# Freeform text box with real-time suggestions
 user_search = st.text_input("Type stock name (e.g., Reliance, Infosys, TCS...)")
 selected_symbol = None
 
 if user_search:
     suggestions = process.extract(user_search, company_names, limit=5)
-    match_labels = [s[0] for s in suggestions]
-    if len(match_labels) == 1:
-        selected_symbol = symbol_dict[match_labels[0]]
-    else:
-        matched = st.selectbox("Select a matching stock:", match_labels)
-        if matched:
-            selected_symbol = symbol_dict[matched]
+    if suggestions:
+        top_match = suggestions[0][0]
+        selected_symbol = symbol_dict[top_match]
+        st.caption(f"Top Match: {top_match} ({selected_symbol})")
 
 if selected_symbol and st.button("Analyze"):
     results = analyze_portfolio([selected_symbol])
