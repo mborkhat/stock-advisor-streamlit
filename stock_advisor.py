@@ -54,26 +54,14 @@ def get_advice(text):
     result = classifier(text, labels)
     return result['labels'][0]
 
-# Fuzzy matching support for Yahoo tickers
-def fuzzy_match_stock(user_input, stock_list):
-    matches = process.extract(user_input, stock_list, limit=5)
-    return [match[0] for match in matches]
-
-# Define a static list of popular Yahoo Finance tickers with display names
-yahoo_stocks = {
-    "Reliance Industries": "RELIANCE.NS",
-    "Infosys": "INFY.NS",
-    "Tata Consultancy Services": "TCS.NS",
-    "HDFC Bank": "HDFCBANK.NS",
-    "ICICI Bank": "ICICIBANK.NS",
-    "Bharti Airtel": "BHARTIARTL.NS",
-    "Axis Bank": "AXISBANK.NS",
-    "Maruti Suzuki": "MARUTI.NS",
-    "Larsen & Toubro": "LT.NS",
-    "ITC": "ITC.NS",
-    "State Bank of India": "SBIN.NS",
-    "Hindustan Unilever": "HINDUNILVR.NS"
-}
+# Get live stock suggestions using yfinance tickers list
+def get_yahoo_symbols():
+    try:
+        tickers = pd.read_html("https://en.wikipedia.org/wiki/NIFTY_50")[1]
+        symbol_dict = dict(zip(tickers['Company'], tickers['Symbol'].apply(lambda x: x + ".NS")))
+        return symbol_dict
+    except:
+        return {}
 
 # Streamlit UI
 st.title("\U0001F4C8 Indian Stock Portfolio Advisor (Free AI Powered)")
@@ -82,15 +70,19 @@ st.markdown("""
 This app analyzes **Indian stocks from Yahoo Finance**, evaluates 6-month performance, and gives investment advice using Hugging Face transformers (100% free tech).
 """)
 
-# Autocomplete with fuzzy search
+# Load dynamic list of symbols
+symbol_dict = get_yahoo_symbols()
+company_names = list(symbol_dict.keys())
+
 user_search = st.text_input("Type stock name (e.g., reliance, infosys, tata...)")
 selected_symbol = None
 
 if user_search:
-    suggestions = fuzzy_match_stock(user_search, list(yahoo_stocks.keys()))
-    matched = st.selectbox("Select a matching stock:", suggestions)
+    suggestions = process.extract(user_search, company_names, limit=5)
+    match_labels = [s[0] for s in suggestions]
+    matched = st.selectbox("Select a matching stock:", match_labels)
     if matched:
-        selected_symbol = yahoo_stocks[matched]
+        selected_symbol = symbol_dict[matched]
 
 if selected_symbol and st.button("Analyze"):
     results = analyze_portfolio([selected_symbol])
