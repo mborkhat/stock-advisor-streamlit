@@ -9,7 +9,7 @@ import requests
 import re
 
 # NEWS API KEY (replace with your key)
-NEWS_API_KEY = "43519c8a11d042d39bf873d5d8cb0c6b"
+NEWS_API_KEY = "your_newsapi_key_here"
 
 # Ensure device compatibility (CPU only to avoid meta tensor errors)
 classifier = pipeline(
@@ -24,9 +24,9 @@ RISK_THRESHOLDS = {
     "high": 20
 }
 
-def fetch_stock_summary(symbol):
+def fetch_stock_summary(symbol, period):
     stock = yf.Ticker(symbol)
-    hist = stock.history(period="5y")
+    hist = stock.history(period=period)
 
     if hist.empty:
         return None
@@ -74,8 +74,9 @@ def get_yahoo_stock_symbols(query):
     return [m[0] for m in matched if m[1] > 50]
 
 def fetch_stock_news(symbol):
-    company = re.sub(r'\W+', ' ', symbol.replace('.NS', '')).strip()
-    url = f"https://newsapi.org/v2/everything?q={company}&language=en&sortBy=publishedAt&apiKey={NEWS_API_KEY}"
+    company = re.sub(r'[\W_]+', ' ', symbol.replace('.NS', '')).strip()
+    query = f"{company} stock OR {company} company"
+    url = f"https://newsapi.org/v2/everything?q={query}&language=en&sortBy=publishedAt&apiKey={NEWS_API_KEY}"
     response = requests.get(url)
     if response.status_code == 200:
         data = response.json()
@@ -91,11 +92,14 @@ def fetch_stock_news(symbol):
 st.title("\U0001F4C8 Indian Stock Portfolio Advisor (Free AI Powered)")
 
 st.markdown("""
-This app analyzes **Indian stocks from Yahoo Finance**, evaluates 5-year performance, and gives investment advice using Hugging Face transformers (100% free tech).
+This app analyzes **Indian stocks from Yahoo Finance**, evaluates performance, and gives investment advice using Hugging Face transformers (100% free tech).
 """)
 
 user_search = st.text_input("\U0001F50D Type stock name or symbol (e.g., Reliance, INFY.NS, TCS.NS)")
 selected_symbol = None
+
+time_range = st.selectbox("Select performance period:", (
+    "6mo", "1y", "2y", "3y", "4y", "5y"), index=0)
 
 if user_search:
     suggestions = get_yahoo_stock_symbols(user_search)
@@ -103,7 +107,7 @@ if user_search:
         selected_symbol = st.selectbox("Suggestions:", suggestions)
 
 if selected_symbol:
-    result = fetch_stock_summary(selected_symbol)
+    result = fetch_stock_summary(selected_symbol, time_range)
 
     if not result:
         st.error("No data found. Please try another stock symbol.")
@@ -111,11 +115,11 @@ if selected_symbol:
         st.subheader("\U0001F4C8 Stock Summary")
         st.write(f"**{result['symbol']}**: Current price ₹{result['current_price']:.2f}")
         st.write(f"**52 Week High**: ₹{result['week_52_high']}, **52 Week Low**: ₹{result['week_52_low']}")
-        st.write(f"Performance over 5 years: {result['pct_change']:.2f}%")
+        st.write(f"Performance over {time_range}: {result['pct_change']:.2f}%")
         st.write(f"Risk level: {result['risk']}")
 
         prompt = (
-            f"The stock {result['symbol']} has changed {result['pct_change']:.2f}% over 5 years. "
+            f"The stock {result['symbol']} has changed {result['pct_change']:.2f}% over {time_range}. "
             f"The current price is ₹{result['current_price']:.2f}. Risk level is {result['risk']}. Should I invest?"
         )
         recommendation = get_advice(prompt)
@@ -131,12 +135,12 @@ if selected_symbol:
         else:
             st.write("No news found for this stock.")
 
-        st.subheader("\U0001F4C9 5-Year Price Chart")
+        st.subheader(f"\U0001F4C9 {time_range} Price Chart")
         hist = result['history']
         fig = go.Figure()
         fig.add_trace(go.Scatter(x=hist.index, y=hist['Close'], mode='lines+markers', name='Close Price', text=hist['Close'], hovertemplate='Date: %{x}<br>Price: ₹%{y:.2f}<extra></extra>'))
         fig.update_layout(
-            title=f"{result['symbol']} - 5Y Closing Prices",
+            title=f"{result['symbol']} - {time_range} Closing Prices",
             xaxis_title='Date',
             yaxis_title='Price (₹)',
             hovermode='x unified',
