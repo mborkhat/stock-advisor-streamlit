@@ -18,8 +18,8 @@ def fetch_stock_summary(stock_symbol):
 
 # Fetch stock news using NewsAPI
 def get_stock_news(stock_symbol):
-    api_key = 'YOUR_NEWSAPI_KEY'  # Replace with your NewsAPI key
-    url = f"https://newsapi.org/v2/everything?q={stock_symbol}&apiKey={43519c8a11d042d39bf873d5d8cb0c6b}"
+    api_key = '43519c8a11d042d39bf873d5d8cb0c6b'  # Replace with your NewsAPI key
+    url = f"https://newsapi.org/v2/everything?q={stock_symbol}&apiKey={api_key}"
     response = requests.get(url)
     
     if response.status_code == 200:
