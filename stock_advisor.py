@@ -89,7 +89,16 @@ def fetch_stock_news(symbol):
         news = data['quoteSummary']['result'][0].get('news', [])
         articles = []
         for item in news:
-            articles.append(item['title'])
+            title = item['title']
+            source = item['source']
+            url = item['link']
+            date = item['providerPublishTime']
+            articles.append({
+                'title': title,
+                'source': source,
+                'url': url,
+                'date': pd.to_datetime(date, unit='s').strftime('%Y-%m-%d %H:%M:%S')
+            })
         return articles
     return []
 
@@ -135,12 +144,17 @@ if selected_symbol:
         articles = fetch_stock_news(result['symbol'])
         if articles:
             for article in articles[:5]:  # Display top 5 news articles
-                st.write(f"- {article}")
+                st.write(f"- **{article['title']}**")
+                st.write(f"  Source: {article['source']} | Date: {article['date']}")
+                st.write(f"  [Read more]({article['url']})")
         else:
             st.write("No news found for this stock.")
 
         # Display stock price chart
         st.subheader("📉 6-Month Price Chart")
-        fig, ax = plt.subplots()
+        fig, ax = plt.subplots(figsize=(10, 6))
         result['history']['Close'].plot(ax=ax, title=f"{result['symbol']} - 6M Closing Prices")
+        ax.set_ylabel('Price (₹)')
+        ax.set_xlabel('Date')
+        ax.grid(True)
         st.pyplot(fig)
