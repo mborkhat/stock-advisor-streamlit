@@ -74,9 +74,10 @@ def get_yahoo_stock_symbols(query):
     return [m[0] for m in matched if m[1] > 50]
 
 def fetch_stock_news(symbol):
-    company = re.sub(r'[\W_]+', ' ', symbol.replace('.NS', '')).strip()
-    query = f"{company} stock OR {company} company"
-    url = f"https://newsapi.org/v2/everything?q={query}&language=en&sortBy=publishedAt&apiKey={NEWS_API_KEY}"
+    stock = yf.Ticker(symbol)
+    company_name = stock.info.get("longName", re.sub(r'[\W_]+', ' ', symbol.replace('.NS', '')).strip())
+    query = f'"{company_name}" AND stock'
+    url = f"https://newsapi.org/v2/everything?q={query}&language=en&sortBy=publishedAt&pageSize=5&apiKey={NEWS_API_KEY}"
     response = requests.get(url)
     if response.status_code == 200:
         data = response.json()
@@ -85,8 +86,9 @@ def fetch_stock_news(symbol):
             'source': a['source']['name'],
             'url': a['url'],
             'date': pd.to_datetime(a['publishedAt']).strftime('%Y-%m-%d %H:%M')
-        } for a in data.get('articles', [])[:5]]
+        } for a in data.get('articles', [])]
     return []
+
 
 # Streamlit UI
 st.title("\U0001F4C8 Indian Stock Portfolio Advisor (Free AI Powered)")
