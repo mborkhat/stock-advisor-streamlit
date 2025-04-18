@@ -4,9 +4,13 @@ from transformers import pipeline
 import pandas as pd
 import matplotlib.pyplot as plt
 import requests
+import torch
 
-# Load Hugging Face zero-shot classifier
-classifier = pipeline("zero-shot-classification", model="facebook/bart-large-mnli")
+# Ensure the model runs on CPU if no GPU is available
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+# Load Hugging Face zero-shot classifier with device setting
+classifier = pipeline("zero-shot-classification", model="facebook/bart-large-mnli", device=device)
 
 # Define risk metrics and thresholds
 RISK_THRESHOLDS = {
