@@ -4,6 +4,7 @@ from transformers import pipeline
 import pandas as pd
 import matplotlib.pyplot as plt
 import torch
+from fuzzywuzzy import process
 
 # Ensure device compatibility
 try:
@@ -53,6 +54,18 @@ def get_advice(text):
     result = classifier(text, labels)
     return result['labels'][0]
 
+# Fuzzy matching support
+def fuzzy_match_stock(user_input, stock_list):
+    matches = process.extract(user_input, stock_list, limit=5)
+    return [match[0] for match in matches]
+
+@st.cache_data
+def get_nse_tickers():
+    url = "https://raw.githubusercontent.com/datasets/nse-stocks/master/data/stocks.csv"
+    df = pd.read_csv(url)
+    df['yahoo_symbol'] = df['Ticker'] + ".NS"
+    return df[['Name', 'yahoo_symbol']].dropna()
+
 # Streamlit UI
 st.title("📊 Indian Stock Portfolio Advisor (Free AI Powered)")
 
@@ -60,9 +73,19 @@ st.markdown("""
 This app analyzes **Indian stocks from Yahoo Finance**, evaluates 6-month performance, and gives investment advice using Hugging Face transformers (100% free tech).
 """)
 
-# User input for stock symbol
-ticker_input = st.text_input("Enter a Yahoo Finance stock symbol (e.g., RELIANCE.NS, TCS.NS):")
-selected_symbol = ticker_input.strip().upper() if ticker_input else None
+# Load NSE stock data
+nse_df = get_nse_tickers()
+stock_names = nse_df['Name'].tolist()
+
+# Autocomplete with fuzzy search
+user_search = st.text_input("Type stock name (e.g., reliance, infosys, tata...)")
+selected_symbol = None
+
+if user_search:
+    suggestions = fuzzy_match_stock(user_search, stock_names)
+    matched = st.selectbox("Select a matching stock:", suggestions)
+    if matched:
+        selected_symbol = nse_df[nse_df['Name'] == matched]['yahoo_symbol'].values[0]
 
 if selected_symbol and st.button("Analyze"):
     results = analyze_portfolio([selected_symbol])
