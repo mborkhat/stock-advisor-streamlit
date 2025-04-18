@@ -8,3 +8,5 @@ pandas
 plotly
 requests
 yahoo_fin
+requests
+re
